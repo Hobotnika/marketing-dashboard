@@ -10,12 +10,13 @@ This comprehensive guide walks you through setting up the marketing dashboard fr
 2. [Installation](#installation)
 3. [Google Ads API Setup](#google-ads-api-setup)
 4. [Meta Ads API Setup](#meta-ads-api-setup)
-5. [Notification Setup](#notification-setup)
-6. [Cron Job Configuration](#cron-job-configuration)
-7. [Testing](#testing)
-8. [Deployment](#deployment)
-9. [Troubleshooting](#troubleshooting)
-10. [Adding New Metrics](#adding-new-metrics)
+5. [Calendly API Setup](#calendly-api-setup)
+6. [Notification Setup](#notification-setup)
+7. [Cron Job Configuration](#cron-job-configuration)
+8. [Testing](#testing)
+9. [Deployment](#deployment)
+10. [Troubleshooting](#troubleshooting)
+11. [Adding New Metrics](#adding-new-metrics)
 
 ---
 
@@ -226,6 +227,85 @@ Expected output:
 ✓ Conversations: 234
 ✓ Cost per Conv: $5.34
 ```
+
+---
+
+## Calendly API Setup
+
+Track meeting bookings and conversions from your marketing campaigns.
+
+### Step 1: Get Personal Access Token
+
+1. Log in to [Calendly](https://calendly.com)
+2. Go to **Settings** → **Integrations** → **API & Webhooks**
+   - Or visit: https://calendly.com/integrations/api_webhooks
+3. Click **"Generate New Token"**
+4. Name it: `Marketing Dashboard`
+5. Copy the token (you won't see it again!)
+
+**Token format:** `eyJraWQi...` (long string starting with eyJ)
+
+### Step 2: Get Your User URI
+
+Use this curl command with your token:
+
+```bash
+curl --request GET \
+  --url 'https://api.calendly.com/users/me' \
+  --header 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+  --header 'Content-Type: application/json'
+```
+
+**Response:**
+```json
+{
+  "resource": {
+    "uri": "https://api.calendly.com/users/XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+    "name": "Your Name",
+    "email": "you@example.com"
+  }
+}
+```
+
+Copy the `uri` value.
+
+### Step 3: Update .env.local
+
+```env
+CALENDLY_ACCESS_TOKEN=eyJraWQi...
+CALENDLY_USER_URI=https://api.calendly.com/users/XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+```
+
+### Step 4: Test Connection
+
+```bash
+npm run dev
+# Then in another terminal:
+curl http://localhost:3000/api/calendly/events
+```
+
+**Expected response:**
+```json
+{
+  "totalBooked": 42,
+  "completed": 35,
+  "noShows": 3,
+  "conversionRate": 83.33,
+  "dateRange": {
+    "start": "2024-10-26",
+    "end": "2024-11-26"
+  }
+}
+```
+
+### What You'll Track
+
+- ✅ **Total Bookings** - All meetings scheduled
+- ✅ **Completed Meetings** - Successful meetings (no cancels/no-shows)
+- ✅ **No-Show Rate** - Meetings where invitee didn't attend
+- ✅ **Lead to Meeting Conversion** - WhatsApp conversations → Calendly bookings
+
+**See:** `CALENDLY_SETUP.md` for detailed configuration guide.
 
 ---
 

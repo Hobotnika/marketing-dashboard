@@ -1,5 +1,7 @@
 import { GoogleAdsMetrics } from '@/types/google-ads';
 import { MetaAdsMetrics, MetaCampaignMetrics } from '@/types/meta-ads';
+import { CalendlyMetrics } from '@/types/calendly';
+import { RevenueMetrics } from '@/types/stripe';
 import fs from 'fs';
 import path from 'path';
 
@@ -9,11 +11,15 @@ interface CachedMetrics {
     campaigns: MetaCampaignMetrics[];
     totals: MetaAdsMetrics;
   };
+  calendly?: CalendlyMetrics;
+  stripe?: RevenueMetrics;
   timestamp: string;
   success: boolean;
   errors?: {
     google?: string;
     meta?: string;
+    calendly?: string;
+    stripe?: string;
   };
 }
 

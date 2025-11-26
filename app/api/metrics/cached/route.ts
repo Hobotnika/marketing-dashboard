@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
       data: {
         google: cached.google,
         meta: cached.meta,
+        calendly: cached.calendly,
+        stripe: cached.stripe,
       },
       timestamp: cached.timestamp,
       timeSinceUpdate: getTimeSinceUpdate(),

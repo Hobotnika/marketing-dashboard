@@ -1,6 +1,6 @@
 # Multi-Platform Marketing Dashboard
 
-A modern, real-time marketing dashboard built with Next.js that integrates with Google Ads and Meta (Facebook) Ads APIs to display comprehensive campaign performance metrics.
+A modern, real-time marketing dashboard built with Next.js that integrates with Google Ads, Meta (Facebook) Ads, and Calendly APIs to display comprehensive campaign performance and meeting booking metrics.
 
 ## Features
 
@@ -15,6 +15,20 @@ A modern, real-time marketing dashboard built with Next.js that integrates with 
 - **Cost Analysis**: Automatic cost per conversation/lead calculations
 - **Campaign Breakdown**: Individual performance cards per campaign
 - **Comprehensive Metrics**: Reach, Impressions, Conversions, Spend
+
+### Calendly Integration
+- **Meeting Bookings**: Track total meetings scheduled
+- **Completion Rate**: Monitor meetings completed vs no-shows
+- **Lead to Meeting Conversion**: WhatsApp conversations → Calendly bookings
+- **Booking Trends**: Visualize meeting bookings over time
+- **No-Show Analytics**: Identify and reduce no-show rates
+
+### Stripe Integration
+- **Revenue Tracking**: Total revenue from all successful payments
+- **Conversion Metrics**: Track total conversions and AOV
+- **ROAS Calculation**: Automatic Return on Ad Spend (color-coded)
+- **Profit Analysis**: Net profit (revenue - ad spend)
+- **Weekly Breakdown**: Revenue vs Ad Spend comparison chart
 
 ### Dashboard Features
 - **Multi-Platform View**: See Google and Meta metrics side-by-side
@@ -62,11 +76,21 @@ GOOGLE_ADS_REFRESH_TOKEN=your_refresh_token
 # Meta Ads API
 META_ACCESS_TOKEN=your_meta_access_token
 META_AD_ACCOUNT_ID=act_your_account_id
+
+# Calendly API
+CALENDLY_ACCESS_TOKEN=your_calendly_token
+CALENDLY_USER_URI=https://api.calendly.com/users/your_user_id
+
+# Stripe API
+STRIPE_SECRET_KEY=sk_test_your_key
+STRIPE_PUBLISHABLE_KEY=pk_test_your_key
 ```
 
 **Need help getting credentials?**
 - Google Ads: See [SETUP.md](./SETUP.md)
 - Meta Ads: See [META_SETUP.md](./META_SETUP.md)
+- Calendly: See [CALENDLY_SETUP.md](./CALENDLY_SETUP.md)
+- Stripe: See [STRIPE_SETUP.md](./STRIPE_SETUP.md)
 
 ### 3. Test Your Connections
 

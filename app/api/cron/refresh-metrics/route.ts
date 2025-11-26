@@ -77,9 +77,11 @@ export async function GET(request: NextRequest) {
 
     console.log('[CRON] Starting metrics refresh...');
 
-    const errors: { google?: string; meta?: string } = {};
+    const errors: { google?: string; meta?: string; calendly?: string; stripe?: string } = {};
     let googleData = null;
     let metaData = null;
+    let calendlyData = null;
+    let stripeData = null;
 
     // Fetch Google Ads metrics
     try {
@@ -133,12 +135,66 @@ export async function GET(request: NextRequest) {
       console.error('[CRON] Meta Ads exception:', error);
     }
 
+    // Fetch Calendly metrics
+    try {
+      console.log('[CRON] Fetching Calendly metrics...');
+      const calendlyResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/calendly/events`,
+        {
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        }
+      );
+
+      const calendlyResult = await calendlyResponse.json();
+
+      if (calendlyResult && !calendlyResult.error) {
+        calendlyData = calendlyResult;
+        console.log('[CRON] Calendly metrics fetched successfully');
+      } else {
+        errors.calendly = calendlyResult.error || 'Failed to fetch Calendly metrics';
+        console.error('[CRON] Calendly error:', errors.calendly);
+      }
+    } catch (error) {
+      errors.calendly = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[CRON] Calendly exception:', error);
+    }
+
+    // Fetch Stripe revenue metrics
+    try {
+      console.log('[CRON] Fetching Stripe revenue metrics...');
+      const stripeResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/stripe/revenue`,
+        {
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        }
+      );
+
+      const stripeResult = await stripeResponse.json();
+
+      if (stripeResult && !stripeResult.error) {
+        stripeData = stripeResult;
+        console.log('[CRON] Stripe revenue metrics fetched successfully');
+      } else {
+        errors.stripe = stripeResult.error || 'Failed to fetch Stripe revenue metrics';
+        console.error('[CRON] Stripe error:', errors.stripe);
+      }
+    } catch (error) {
+      errors.stripe = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[CRON] Stripe exception:', error);
+    }
+
     // Save to persistent cache
     const cachedMetrics = {
       google: googleData,
       meta: metaData,
+      calendly: calendlyData,
+      stripe: stripeData,
       timestamp: new Date().toISOString(),
-      success: googleData !== null || metaData !== null,
+      success: googleData !== null || metaData !== null || calendlyData !== null || stripeData !== null,
       errors: Object.keys(errors).length > 0 ? errors : undefined,
     };
 
@@ -190,6 +246,8 @@ export async function GET(request: NextRequest) {
       data: {
         google: googleData ? 'fetched' : 'failed',
         meta: metaData ? 'fetched' : 'failed',
+        calendly: calendlyData ? 'fetched' : 'failed',
+        stripe: stripeData ? 'fetched' : 'failed',
       },
       errors: Object.keys(errors).length > 0 ? errors : undefined,
       cached: saved,
