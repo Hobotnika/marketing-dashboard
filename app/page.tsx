@@ -28,7 +28,7 @@ function calculateROAS(revenue: number, adSpend: number) {
       value: roas,
       formatted: `${roas.toFixed(1)}x`,
       color: 'text-green-600 dark:text-green-400',
-      bgColor: 'bg-green-50 dark:bg-green-900/20',
+      bgColor: 'bg-green-50 dark:bg-green-950',
       borderColor: 'border-green-200 dark:border-green-800',
       status: 'excellent' as const,
     };
@@ -37,7 +37,7 @@ function calculateROAS(revenue: number, adSpend: number) {
       value: roas,
       formatted: `${roas.toFixed(1)}x`,
       color: 'text-yellow-600 dark:text-yellow-400',
-      bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
+      bgColor: 'bg-green-50 dark:bg-green-950',
       borderColor: 'border-yellow-200 dark:border-yellow-800',
       status: 'good' as const,
     };
@@ -46,8 +46,8 @@ function calculateROAS(revenue: number, adSpend: number) {
       value: roas,
       formatted: `${roas.toFixed(1)}x`,
       color: 'text-red-600 dark:text-red-400',
-      bgColor: 'bg-red-50 dark:bg-red-900/20',
-      borderColor: 'border-red-200 dark:border-red-800',
+      bgColor: 'bg-green-50 dark:bg-green-950',
+      borderColor: 'border-green-200 dark:border-green-800',
       status: 'poor' as const,
     };
   }
