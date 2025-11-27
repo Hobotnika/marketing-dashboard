@@ -541,202 +541,156 @@ export default function DashboardOptimized() {
           </section>
         )}
 
-        {/* Calendly Meeting Bookings Section */}
-        {cachedData?.data.calendly ? (
-          <section className="mb-12">
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-3">
-              <svg
-                className="w-8 h-8 text-blue-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              Meeting Bookings
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <MetricsCard
-                title="Total Bookings"
-                value={cachedData.data.calendly.totalBooked.toLocaleString()}
-                subtitle={`${cachedData.data.calendly.dateRange.start} - ${cachedData.data.calendly.dateRange.end}`}
-                trend="up"
-                trendValue="+18%"
-                loading={isLoading}
-                tooltip="Total number of meetings booked through Calendly"
-                icon={
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-                    />
-                  </svg>
-                }
+        {/* Meeting Bookings Section - MOCK DATA */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-3">
+            <svg
+              className="w-8 h-8 text-blue-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
               />
-
-              <MetricsCard
-                title="Completed Meetings"
-                value={cachedData.data.calendly.completed.toLocaleString()}
-                subtitle={`${cachedData.data.calendly.conversionRate.toFixed(1)}% conversion`}
-                trend={cachedData.data.calendly.conversionRate >= 70 ? 'up' : 'down'}
-                trendValue={`${cachedData.data.calendly.conversionRate.toFixed(1)}%`}
-                loading={isLoading}
-                tooltip="Meetings that were completed (not canceled or no-show)"
-                icon={
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                }
-              />
-
-              <MetricsCard
-                title="No-Shows"
-                value={cachedData.data.calendly.noShows.toLocaleString()}
-                subtitle={`${((cachedData.data.calendly.noShows / cachedData.data.calendly.totalBooked) * 100).toFixed(1)}% no-show rate`}
-                trend={cachedData.data.calendly.noShows === 0 ? 'up' : 'down'}
-                trendValue={`${((cachedData.data.calendly.noShows / cachedData.data.calendly.totalBooked) * 100).toFixed(1)}%`}
-                loading={isLoading}
-                tooltip="Meetings where the invitee didn't show up"
-                icon={
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                }
-              />
-
-              {/* Lead to Meeting Conversion */}
-              {cachedData?.data.meta && (
-                <MetricsCard
-                  title="Lead to Meeting Rate"
-                  value={`${((cachedData.data.calendly.totalBooked / cachedData.data.meta.totals.whatsappConversations) * 100).toFixed(1)}%`}
-                  subtitle="WhatsApp → Calendly"
-                  trend={
-                    (cachedData.data.calendly.totalBooked / cachedData.data.meta.totals.whatsappConversations) * 100 >= 20
-                      ? 'up'
-                      : 'neutral'
-                  }
-                  trendValue={`${cachedData.data.calendly.totalBooked} / ${cachedData.data.meta.totals.whatsappConversations}`}
-                  loading={isLoading}
-                  tooltip="Percentage of WhatsApp conversations that converted to scheduled meetings"
-                  icon={
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                      />
-                    </svg>
-                  }
-                />
-              )}
-            </div>
-
-            {/* Bookings Trend Chart - Lazy Loaded */}
-            <Suspense fallback={<div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse"></div>}>
-              <LineChart
-                title="Meeting Bookings Over Time"
-                data={generateTrendData(14).map(d => ({
-                  ...d,
-                  bookings: Math.floor(Math.random() * 30) + 10,
-                }))}
-                lines={[
-                  { dataKey: 'bookings', name: 'Meetings Booked', color: '#3B82F6' },
-                ]}
-                xAxisKey="date"
-              />
-            </Suspense>
-          </section>
-        ) : cachedData?.errors?.calendly ? (
-          <section className="mb-12">
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-3">
-              <svg
-                className="w-8 h-8 text-blue-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              Meeting Bookings
-            </h2>
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-8 text-center">
-              <svg
-                className="w-12 h-12 text-yellow-600 dark:text-yellow-400 mx-auto mb-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <h3 className="text-lg font-semibold text-yellow-900 dark:text-yellow-100 mb-2">
-                Calendly Data Unavailable
-              </h3>
-              <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                {cachedData.errors.calendly}
-              </p>
-              <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-2">
-                Showing cached data from last successful refresh
-              </p>
-            </div>
-          </section>
-        ) : null}
-
-        {/* Conversion Funnel - Lazy Loaded */}
-        <section>
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
-            Customer Journey
+            </svg>
+            Meeting Bookings
           </h2>
-          <Suspense fallback={<div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse"></div>}>
-            <ConversionFunnel stages={funnelData} />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* Total Bookings */}
+            <MetricsCard
+              title="Total Bookings"
+              value="47"
+              subtitle="Nov 1 - Nov 27, 2025"
+              trend="up"
+              trendValue="+18%"
+              loading={false}
+              tooltip="Total number of meetings booked through Calendly"
+              icon={
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                  />
+                </svg>
+              }
+            />
+
+            {/* Completed Meetings */}
+            <MetricsCard
+              title="Completed Meetings"
+              value="38"
+              subtitle="80.9% conversion"
+              trend="up"
+              trendValue="80.9%"
+              loading={false}
+              tooltip="Meetings that were completed (not canceled or no-show)"
+              icon={
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              }
+            />
+
+            {/* No-Shows */}
+            <MetricsCard
+              title="No-Shows"
+              value="5"
+              subtitle="10.6% no-show rate"
+              trend="down"
+              trendValue="10.6%"
+              loading={false}
+              tooltip="Meetings where the invitee didn't show up"
+              icon={
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              }
+            />
+
+            {/* Lead to Meeting Conversion */}
+            <MetricsCard
+              title="Lead to Meeting Rate"
+              value="32.4%"
+              subtitle="WhatsApp → Calendly"
+              trend="up"
+              trendValue="47 / 145"
+              loading={false}
+              tooltip="Percentage of WhatsApp conversations that converted to scheduled meetings"
+              icon={
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                  />
+                </svg>
+              }
+            />
+          </div>
+
+          {/* Bookings Trend Chart */}
+          <Suspense fallback={<div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse"></div>}>
+            <LineChart
+              title="Meeting Bookings Over Time"
+              data={[
+                { date: 'Nov 13', bookings: 2 },
+                { date: 'Nov 14', bookings: 4 },
+                { date: 'Nov 15', bookings: 3 },
+                { date: 'Nov 16', bookings: 1 },
+                { date: 'Nov 17', bookings: 0 },
+                { date: 'Nov 18', bookings: 5 },
+                { date: 'Nov 19', bookings: 3 },
+                { date: 'Nov 20', bookings: 6 },
+                { date: 'Nov 21', bookings: 2 },
+                { date: 'Nov 22', bookings: 4 },
+                { date: 'Nov 23', bookings: 3 },
+                { date: 'Nov 24', bookings: 0 },
+                { date: 'Nov 25', bookings: 7 },
+                { date: 'Nov 26', bookings: 5 },
+              ]}
+              lines={[
+                { dataKey: 'bookings', name: 'Meetings Booked', color: '#3B82F6' },
+              ]}
+              xAxisKey="date"
+            />
           </Suspense>
         </section>
       </div>
