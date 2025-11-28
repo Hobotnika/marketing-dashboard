@@ -6,6 +6,7 @@ import { PDFDownloadLink } from '@react-pdf/renderer';
 import { PDFReport } from './PDFReport';
 import { GoogleAdsMetrics } from '@/types/google-ads';
 import { MetaAdsMetrics } from '@/types/meta-ads';
+import UserMenu from './UserMenu';
 
 interface DashboardHeaderProps {
   lastUpdate: string | null;
@@ -40,6 +41,11 @@ export default function DashboardHeader({
 
   return (
     <div className="mb-8">
+      {/* Top Bar with User Menu */}
+      <div className="flex items-center justify-end mb-6">
+        <UserMenu />
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
