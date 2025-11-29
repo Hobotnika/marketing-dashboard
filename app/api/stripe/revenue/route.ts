@@ -5,10 +5,14 @@ import type {
   StripeListResponse,
 } from '@/types/stripe';
 import { getCache, setCache } from '@/lib/cache';
+import { getOrganizationFromHeaders } from '@/lib/api/get-organization';
+import { decrypt } from '@/lib/db/encryption';
 
 const STRIPE_API_BASE = 'https://api.stripe.com/v1';
-const CACHE_KEY = 'stripe-revenue';
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+
+// Generate org-specific cache key
+const getCacheKey = (orgId: string) => `stripe-revenue-${orgId}`;
 
 /**
  * GET /api/stripe/revenue
@@ -27,13 +31,18 @@ export async function GET(request: Request) {
     const startDate = searchParams.get('startDate') ||
       new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // Check required environment variables
-    const secretKey = process.env.STRIPE_SECRET_KEY;
+    // Get organization from middleware headers
+    const { organization, error } = await getOrganizationFromHeaders();
+    if (error) return error;
 
-    if (!secretKey) {
-      console.warn('⚠️  Stripe credentials not configured, using cached data');
-      return returnCachedData(startDate, endDate);
+    // Get organization-specific Stripe credentials
+    if (!organization.stripeSecretKey) {
+      console.warn(`⚠️  Stripe credentials not configured for org ${organization.name}, using cached data`);
+      return returnCachedData(startDate, endDate, organization.id);
     }
+
+    // Decrypt the secret key
+    const secretKey = decrypt(organization.stripeSecretKey);
 
     console.log(`💳 Fetching Stripe revenue from ${startDate} to ${endDate}`);
 
@@ -48,21 +57,33 @@ export async function GET(request: Request) {
     // Calculate metrics
     const metrics = calculateMetrics(charges, startDate, endDate);
 
-    // Cache the results
-    setCache(CACHE_KEY, metrics, CACHE_TTL);
+    // Cache the results with org-specific key
+    setCache(getCacheKey(organization.id), metrics, CACHE_TTL);
 
     return NextResponse.json(metrics);
 
   } catch (error) {
     console.error('❌ Stripe API Error:', error);
 
-    // Return cached data on error
-    const { searchParams } = new URL(request.url);
-    const endDate = searchParams.get('endDate') || new Date().toISOString().split('T')[0];
-    const startDate = searchParams.get('startDate') ||
-      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // Try to get organization for cache lookup
+    try {
+      const { organization } = await getOrganizationFromHeaders();
+      if (organization) {
+        const { searchParams } = new URL(request.url);
+        const endDate = searchParams.get('endDate') || new Date().toISOString().split('T')[0];
+        const startDate = searchParams.get('startDate') ||
+          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    return returnCachedData(startDate, endDate);
+        return returnCachedData(startDate, endDate, organization.id);
+      }
+    } catch (e) {
+      // Fallback to error response
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to fetch Stripe data' },
+      { status: 500 }
+    );
   }
 }
 
@@ -170,8 +191,8 @@ function calculateMetrics(
 /**
  * Return cached data when API fails or credentials missing
  */
-function returnCachedData(startDate: string, endDate: string) {
-  const cached = getCache<RevenueMetrics>(CACHE_KEY);
+function returnCachedData(startDate: string, endDate: string, organizationId: string) {
+  const cached = getCache<RevenueMetrics>(getCacheKey(organizationId));
 
   if (cached) {
     console.log('✅ Returning cached Stripe revenue data');
@@ -198,6 +219,6 @@ function returnCachedData(startDate: string, endDate: string) {
       end: endDate,
     },
     fromCache: false,
-    message: 'No Stripe data available. Configure STRIPE_SECRET_KEY to track revenue.',
+    message: 'No Stripe data available. Configure Stripe credentials in admin panel.',
   }, { status: 200 }); // Return 200 to prevent dashboard errors
 }

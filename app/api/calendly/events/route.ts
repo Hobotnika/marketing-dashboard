@@ -7,10 +7,14 @@ import type {
   CalendlyInvitee,
 } from '@/types/calendly';
 import { getCache, setCache } from '@/lib/cache';
+import { getOrganizationFromHeaders } from '@/lib/api/get-organization';
+import { decrypt } from '@/lib/db/encryption';
 
 const CALENDLY_API_BASE = 'https://api.calendly.com';
-const CACHE_KEY = 'calendly-metrics';
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+
+// Generate org-specific cache key
+const getCacheKey = (orgId: string) => `calendly-metrics-${orgId}`;
 
 /**
  * GET /api/calendly/events
@@ -29,14 +33,19 @@ export async function GET(request: Request) {
     const startDate = searchParams.get('startDate') ||
       new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // Check required environment variables
-    const accessToken = process.env.CALENDLY_ACCESS_TOKEN;
-    const userUri = process.env.CALENDLY_USER_URI;
+    // Get organization from middleware headers
+    const { organization, error } = await getOrganizationFromHeaders();
+    if (error) return error;
 
-    if (!accessToken || !userUri) {
-      console.warn('⚠️  Calendly credentials not configured, using cached data');
-      return returnCachedData(startDate, endDate);
+    // Get organization-specific Calendly credentials
+    if (!organization.calendlyAccessToken || !organization.calendlyUserUri) {
+      console.warn(`⚠️  Calendly credentials not configured for org ${organization.name}, using cached data`);
+      return returnCachedData(startDate, endDate, organization.id);
     }
+
+    // Decrypt the access token
+    const accessToken = decrypt(organization.calendlyAccessToken);
+    const userUri = organization.calendlyUserUri;
 
     console.log(`📅 Fetching Calendly events from ${startDate} to ${endDate}`);
 
@@ -51,21 +60,33 @@ export async function GET(request: Request) {
     // Calculate metrics
     const metrics = calculateMetrics(events, invitees, startDate, endDate);
 
-    // Cache the results
-    setCache(CACHE_KEY, metrics, CACHE_TTL);
+    // Cache the results with org-specific key
+    setCache(getCacheKey(organization.id), metrics, CACHE_TTL);
 
     return NextResponse.json(metrics);
 
   } catch (error) {
     console.error('❌ Calendly API Error:', error);
 
-    // Return cached data on error
-    const { searchParams } = new URL(request.url);
-    const endDate = searchParams.get('endDate') || new Date().toISOString().split('T')[0];
-    const startDate = searchParams.get('startDate') ||
-      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // Try to get organization for cache lookup
+    try {
+      const { organization } = await getOrganizationFromHeaders();
+      if (organization) {
+        const { searchParams } = new URL(request.url);
+        const endDate = searchParams.get('endDate') || new Date().toISOString().split('T')[0];
+        const startDate = searchParams.get('startDate') ||
+          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    return returnCachedData(startDate, endDate);
+        return returnCachedData(startDate, endDate, organization.id);
+      }
+    } catch (e) {
+      // Fallback to error response
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to fetch Calendly data' },
+      { status: 500 }
+    );
   }
 }
 
@@ -211,8 +232,8 @@ function calculateMetrics(
 /**
  * Return cached data when API fails
  */
-function returnCachedData(startDate: string, endDate: string) {
-  const cached = getCache<CalendlyMetrics>(CACHE_KEY);
+function returnCachedData(startDate: string, endDate: string, organizationId: string) {
+  const cached = getCache<CalendlyMetrics>(getCacheKey(organizationId));
 
   if (cached) {
     console.log('✅ Returning cached Calendly data');
