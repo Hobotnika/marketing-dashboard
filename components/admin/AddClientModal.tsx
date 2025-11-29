@@ -22,9 +22,15 @@ export default function AddClientModal({ isOpen, onClose }: AddClientModalProps)
     name: '',
     subdomain: '',
     calendlyAccessToken: '',
+    calendlyUserUri: '',
     stripeSecretKey: '',
     googleSheetsId: '',
     metaAccessToken: '',
+    metaAdAccountId: '',
+    googleAdsClientId: '',
+    googleAdsClientSecret: '',
+    googleAdsRefreshToken: '',
+    googleAdsCustomerId: '',
     status: 'trial' as 'trial' | 'active' | 'inactive',
     adminName: '',
     adminEmail: '',
@@ -77,9 +83,15 @@ export default function AddClientModal({ isOpen, onClose }: AddClientModalProps)
       name: '',
       subdomain: '',
       calendlyAccessToken: '',
+      calendlyUserUri: '',
       stripeSecretKey: '',
       googleSheetsId: '',
       metaAccessToken: '',
+      metaAdAccountId: '',
+      googleAdsClientId: '',
+      googleAdsClientSecret: '',
+      googleAdsRefreshToken: '',
+      googleAdsCustomerId: '',
       status: 'trial',
       adminName: '',
       adminEmail: '',
@@ -239,6 +251,19 @@ export default function AddClientModal({ isOpen, onClose }: AddClientModalProps)
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Calendly User URI
+                </label>
+                <input
+                  type="text"
+                  value={formData.calendlyUserUri}
+                  onChange={(e) => setFormData({ ...formData, calendlyUserUri: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="https://api.calendly.com/users/..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
                   Stripe Secret Key
                 </label>
                 <input
@@ -273,6 +298,76 @@ export default function AddClientModal({ isOpen, onClose }: AddClientModalProps)
                   onChange={(e) => setFormData({ ...formData, metaAccessToken: e.target.value })}
                   className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="EAA..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Meta Ad Account ID
+                </label>
+                <input
+                  type="text"
+                  value={formData.metaAdAccountId}
+                  onChange={(e) => setFormData({ ...formData, metaAdAccountId: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="act_123456789"
+                />
+              </div>
+            </div>
+
+            {/* Google Ads API Keys */}
+            <div className="space-y-4 border-t border-gray-700 pt-6">
+              <h3 className="text-lg font-semibold text-white">Google Ads API (Optional)</h3>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Google Ads Client ID
+                </label>
+                <input
+                  type="text"
+                  value={formData.googleAdsClientId}
+                  onChange={(e) => setFormData({ ...formData, googleAdsClientId: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="123456789.apps.googleusercontent.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Google Ads Client Secret
+                </label>
+                <input
+                  type="text"
+                  value={formData.googleAdsClientSecret}
+                  onChange={(e) => setFormData({ ...formData, googleAdsClientSecret: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="GOCSPX-..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Google Ads Refresh Token
+                </label>
+                <input
+                  type="text"
+                  value={formData.googleAdsRefreshToken}
+                  onChange={(e) => setFormData({ ...formData, googleAdsRefreshToken: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="1//..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Google Ads Customer ID
+                </label>
+                <input
+                  type="text"
+                  value={formData.googleAdsCustomerId}
+                  onChange={(e) => setFormData({ ...formData, googleAdsCustomerId: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="1234567890"
                 />
               </div>
             </div>

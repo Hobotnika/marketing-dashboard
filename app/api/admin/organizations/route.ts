@@ -53,9 +53,15 @@ export async function POST(request: NextRequest) {
       name,
       subdomain,
       calendlyAccessToken,
+      calendlyUserUri,
       stripeSecretKey,
       googleSheetsId,
       metaAccessToken,
+      metaAdAccountId,
+      googleAdsClientId,
+      googleAdsClientSecret,
+      googleAdsRefreshToken,
+      googleAdsCustomerId,
       status,
       adminEmail,
       adminName,
@@ -91,11 +97,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Encrypt API keys if provided
-    const encryptedCalendly = calendlyAccessToken
-      ? encrypt(calendlyAccessToken)
-      : null;
+    const encryptedCalendly = calendlyAccessToken ? encrypt(calendlyAccessToken) : null;
     const encryptedStripe = stripeSecretKey ? encrypt(stripeSecretKey) : null;
     const encryptedMeta = metaAccessToken ? encrypt(metaAccessToken) : null;
+    const encryptedGoogleAdsClientId = googleAdsClientId ? encrypt(googleAdsClientId) : null;
+    const encryptedGoogleAdsClientSecret = googleAdsClientSecret ? encrypt(googleAdsClientSecret) : null;
+    const encryptedGoogleAdsRefreshToken = googleAdsRefreshToken ? encrypt(googleAdsRefreshToken) : null;
 
     // Create organization
     const [newOrg] = await db
@@ -104,9 +111,15 @@ export async function POST(request: NextRequest) {
         name,
         subdomain,
         calendlyAccessToken: encryptedCalendly,
+        calendlyUserUri,
         stripeSecretKey: encryptedStripe,
         googleSheetsId,
         metaAccessToken: encryptedMeta,
+        metaAdAccountId,
+        googleAdsClientId: encryptedGoogleAdsClientId,
+        googleAdsClientSecret: encryptedGoogleAdsClientSecret,
+        googleAdsRefreshToken: encryptedGoogleAdsRefreshToken,
+        googleAdsCustomerId,
         status: status || 'trial',
       })
       .returning();

@@ -64,9 +64,15 @@ export async function PUT(
       name,
       subdomain,
       calendlyAccessToken,
+      calendlyUserUri,
       stripeSecretKey,
       googleSheetsId,
       metaAccessToken,
+      metaAdAccountId,
+      googleAdsClientId,
+      googleAdsClientSecret,
+      googleAdsRefreshToken,
+      googleAdsCustomerId,
       status,
     } = body;
 
@@ -103,6 +109,9 @@ export async function PUT(
     if (subdomain !== undefined) updateData.subdomain = subdomain;
     if (status !== undefined) updateData.status = status;
     if (googleSheetsId !== undefined) updateData.googleSheetsId = googleSheetsId;
+    if (calendlyUserUri !== undefined) updateData.calendlyUserUri = calendlyUserUri;
+    if (metaAdAccountId !== undefined) updateData.metaAdAccountId = metaAdAccountId;
+    if (googleAdsCustomerId !== undefined) updateData.googleAdsCustomerId = googleAdsCustomerId;
 
     // Encrypt API keys if provided
     if (calendlyAccessToken !== undefined) {
@@ -118,6 +127,21 @@ export async function PUT(
     if (metaAccessToken !== undefined) {
       updateData.metaAccessToken = metaAccessToken
         ? encrypt(metaAccessToken)
+        : null;
+    }
+    if (googleAdsClientId !== undefined) {
+      updateData.googleAdsClientId = googleAdsClientId
+        ? encrypt(googleAdsClientId)
+        : null;
+    }
+    if (googleAdsClientSecret !== undefined) {
+      updateData.googleAdsClientSecret = googleAdsClientSecret
+        ? encrypt(googleAdsClientSecret)
+        : null;
+    }
+    if (googleAdsRefreshToken !== undefined) {
+      updateData.googleAdsRefreshToken = googleAdsRefreshToken
+        ? encrypt(googleAdsRefreshToken)
         : null;
     }
 

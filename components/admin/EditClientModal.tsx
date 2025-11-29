@@ -19,9 +19,15 @@ export default function EditClientModal({ isOpen, onClose, organization }: EditC
     name: '',
     subdomain: '',
     calendlyAccessToken: '',
+    calendlyUserUri: '',
     stripeSecretKey: '',
     googleSheetsId: '',
     metaAccessToken: '',
+    metaAdAccountId: '',
+    googleAdsClientId: '',
+    googleAdsClientSecret: '',
+    googleAdsRefreshToken: '',
+    googleAdsCustomerId: '',
     status: 'trial' as 'trial' | 'active' | 'inactive',
   });
 
@@ -32,9 +38,15 @@ export default function EditClientModal({ isOpen, onClose, organization }: EditC
         name: organization.name || '',
         subdomain: organization.subdomain || '',
         calendlyAccessToken: '',
+        calendlyUserUri: organization.calendlyUserUri || '',
         stripeSecretKey: '',
         googleSheetsId: organization.googleSheetsId || '',
         metaAccessToken: '',
+        metaAdAccountId: organization.metaAdAccountId || '',
+        googleAdsClientId: '',
+        googleAdsClientSecret: '',
+        googleAdsRefreshToken: '',
+        googleAdsCustomerId: organization.googleAdsCustomerId || '',
         status: organization.status || 'trial',
       });
     }
@@ -186,6 +198,19 @@ export default function EditClientModal({ isOpen, onClose, organization }: EditC
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
+                Calendly User URI
+              </label>
+              <input
+                type="text"
+                value={formData.calendlyUserUri}
+                onChange={(e) => setFormData({ ...formData, calendlyUserUri: e.target.value })}
+                className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="https://api.calendly.com/users/..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
                 Stripe Secret Key
                 {organization.stripeSecretKey && (
                   <span className="ml-2 text-xs text-green-500">✓ Configured</span>
@@ -225,6 +250,86 @@ export default function EditClientModal({ isOpen, onClose, organization }: EditC
                 onChange={(e) => setFormData({ ...formData, metaAccessToken: e.target.value })}
                 className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="Leave blank to keep existing"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Meta Ad Account ID
+              </label>
+              <input
+                type="text"
+                value={formData.metaAdAccountId}
+                onChange={(e) => setFormData({ ...formData, metaAdAccountId: e.target.value })}
+                className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="act_123456789"
+              />
+            </div>
+          </div>
+
+          {/* Google Ads API Keys */}
+          <div className="space-y-4 border-t border-gray-700 pt-6">
+            <h3 className="text-lg font-semibold text-white">Google Ads API</h3>
+            <p className="text-sm text-gray-400">Leave encrypted fields blank to keep existing keys</p>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Google Ads Client ID
+                {organization.googleAdsClientId && (
+                  <span className="ml-2 text-xs text-green-500">✓ Configured</span>
+                )}
+              </label>
+              <input
+                type="text"
+                value={formData.googleAdsClientId}
+                onChange={(e) => setFormData({ ...formData, googleAdsClientId: e.target.value })}
+                className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Leave blank to keep existing"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Google Ads Client Secret
+                {organization.googleAdsClientSecret && (
+                  <span className="ml-2 text-xs text-green-500">✓ Configured</span>
+                )}
+              </label>
+              <input
+                type="text"
+                value={formData.googleAdsClientSecret}
+                onChange={(e) => setFormData({ ...formData, googleAdsClientSecret: e.target.value })}
+                className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Leave blank to keep existing"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Google Ads Refresh Token
+                {organization.googleAdsRefreshToken && (
+                  <span className="ml-2 text-xs text-green-500">✓ Configured</span>
+                )}
+              </label>
+              <input
+                type="text"
+                value={formData.googleAdsRefreshToken}
+                onChange={(e) => setFormData({ ...formData, googleAdsRefreshToken: e.target.value })}
+                className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Leave blank to keep existing"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Google Ads Customer ID
+              </label>
+              <input
+                type="text"
+                value={formData.googleAdsCustomerId}
+                onChange={(e) => setFormData({ ...formData, googleAdsCustomerId: e.target.value })}
+                className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="1234567890"
               />
             </div>
           </div>
