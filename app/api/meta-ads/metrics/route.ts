@@ -5,6 +5,8 @@ import {
   MetaAdsMetrics,
 } from '@/types/meta-ads';
 import { getCachedMetrics, setCachedMetrics, getCacheTimestamp } from '@/lib/cache';
+import { getOrganizationFromHeaders } from '@/lib/api/get-organization';
+import { decrypt } from '@/lib/db/encryption';
 
 const META_GRAPH_API_VERSION = 'v18.0';
 const META_GRAPH_API_URL = `https://graph.facebook.com/${META_GRAPH_API_VERSION}`;
@@ -53,20 +55,24 @@ interface MetaCampaignData {
 
 export async function GET(request: NextRequest) {
   try {
-    // Check for required environment variables
-    const requiredEnvVars = ['META_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'];
+    // Get organization from middleware headers
+    const { organization, error: orgError } = await getOrganizationFromHeaders();
+    if (orgError) return orgError;
 
-    const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
+    const cacheKey = `meta-ads-metrics-${organization.id}`;
 
-    if (missingVars.length > 0) {
-      // If API is not configured, return cached data if available
-      const cachedData = getCachedMetrics('meta-ads-metrics');
+    // Check if organization has Meta credentials
+    if (!organization.metaAccessToken || !organization.metaAdAccountId) {
+      console.warn(`⚠️  Meta Ads credentials not configured for org ${organization.name}`);
+
+      // Return cached data if available
+      const cachedData = getCachedMetrics(cacheKey);
       if (cachedData) {
         const response: MetaAdsApiResponse = {
           success: true,
           data: cachedData as any,
           cached: true,
-          cachedAt: getCacheTimestamp('meta-ads-metrics') || undefined,
+          cachedAt: getCacheTimestamp(cacheKey) || undefined,
         };
         return NextResponse.json(response);
       }
@@ -74,7 +80,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: `Missing environment variables: ${missingVars.join(', ')}. Please configure your Meta Ads API credentials.`,
+          error: 'Meta Ads credentials not configured. Please add them in the admin panel.',
         } as MetaAdsApiResponse,
         { status: 500 }
       );
@@ -82,8 +88,9 @@ export async function GET(request: NextRequest) {
 
     // Try to fetch from Meta API
     try {
-      const accessToken = process.env.META_ACCESS_TOKEN!;
-      const adAccountId = process.env.META_AD_ACCOUNT_ID!;
+      // Decrypt organization credentials
+      const accessToken = decrypt(organization.metaAccessToken);
+      const adAccountId = organization.metaAdAccountId;
       const dateRange = getDateRange();
 
       // Fetch campaigns with insights
@@ -214,8 +221,8 @@ export async function GET(request: NextRequest) {
         totals,
       };
 
-      // Cache the successful result
-      setCachedMetrics(responseData as any, 'meta-ads-metrics');
+      // Cache the successful result with org-specific key
+      setCachedMetrics(responseData as any, cacheKey);
 
       const response: MetaAdsApiResponse = {
         success: true,
@@ -228,14 +235,14 @@ export async function GET(request: NextRequest) {
       console.error('Meta Ads API Error:', apiError);
 
       // If API call fails, try to return cached data
-      const cachedData = getCachedMetrics('meta-ads-metrics');
+      const cachedData = getCachedMetrics(cacheKey);
 
       if (cachedData) {
         const response: MetaAdsApiResponse = {
           success: true,
           data: cachedData as any,
           cached: true,
-          cachedAt: getCacheTimestamp('meta-ads-metrics') || undefined,
+          cachedAt: getCacheTimestamp(cacheKey) || undefined,
           error: 'Using cached data due to API error',
         };
         return NextResponse.json(response);
@@ -254,18 +261,26 @@ export async function GET(request: NextRequest) {
   } catch (error: unknown) {
     console.error('Unexpected error:', error);
 
-    // Last resort: try to return cached data
-    const cachedData = getCachedMetrics('meta-ads-metrics');
+    // Try to get organization for cache lookup
+    try {
+      const { organization } = await getOrganizationFromHeaders();
+      if (organization) {
+        const cacheKey = `meta-ads-metrics-${organization.id}`;
+        const cachedData = getCachedMetrics(cacheKey);
 
-    if (cachedData) {
-      const response: MetaAdsApiResponse = {
-        success: true,
-        data: cachedData as any,
-        cached: true,
-        cachedAt: getCacheTimestamp('meta-ads-metrics') || undefined,
-        error: 'Using cached data due to unexpected error',
-      };
-      return NextResponse.json(response);
+        if (cachedData) {
+          const response: MetaAdsApiResponse = {
+            success: true,
+            data: cachedData as any,
+            cached: true,
+            cachedAt: getCacheTimestamp(cacheKey) || undefined,
+            error: 'Using cached data due to unexpected error',
+          };
+          return NextResponse.json(response);
+        }
+      }
+    } catch (e) {
+      // Fallback to error response
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

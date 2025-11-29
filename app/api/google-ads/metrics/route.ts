@@ -4,13 +4,15 @@ import { GoogleAdsMetrics, GoogleAdsApiResponse } from '@/types/google-ads';
 import { getCachedMetrics, setCachedMetrics, getCacheTimestamp } from '@/lib/cache';
 import { fetchWithFallback, monitoredFetch } from '@/lib/api-utils';
 import cacheManager, { generateCacheKey } from '@/lib/cache-manager';
+import { getOrganizationFromHeaders } from '@/lib/api/get-organization';
+import { decrypt } from '@/lib/db/encryption';
 
-// Initialize Google Ads API client
-function getGoogleAdsClient() {
+// Initialize Google Ads API client with organization credentials
+function getGoogleAdsClient(clientId: string, clientSecret: string) {
   const config = {
-    client_id: process.env.GOOGLE_ADS_CLIENT_ID!,
-    client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET!,
-    developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN!,
+    client_id: clientId,
+    client_secret: clientSecret,
+    developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN!, // This stays global
   };
 
   return new GoogleAdsApi(config);
@@ -35,26 +37,29 @@ function getDateRange() {
 
 export async function GET(request: NextRequest) {
   try {
-    // Check for required environment variables
-    const requiredEnvVars = [
-      'GOOGLE_ADS_CLIENT_ID',
-      'GOOGLE_ADS_CLIENT_SECRET',
-      'GOOGLE_ADS_DEVELOPER_TOKEN',
-      'GOOGLE_ADS_CUSTOMER_ID',
-      'GOOGLE_ADS_REFRESH_TOKEN',
-    ];
+    // Get organization from middleware headers
+    const { organization, error: orgError } = await getOrganizationFromHeaders();
+    if (orgError) return orgError;
 
-    const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
+    const cacheKey = `google-ads-metrics-${organization.id}`;
 
-    if (missingVars.length > 0) {
-      // If API is not configured, return cached data if available
-      const cachedData = getCachedMetrics();
+    // Check if organization has Google Ads credentials
+    if (
+      !organization.googleAdsClientId ||
+      !organization.googleAdsClientSecret ||
+      !organization.googleAdsRefreshToken ||
+      !organization.googleAdsCustomerId
+    ) {
+      console.warn(`⚠️  Google Ads credentials not configured for org ${organization.name}`);
+
+      // Return cached data if available
+      const cachedData = getCachedMetrics(cacheKey);
       if (cachedData) {
         const response: GoogleAdsApiResponse = {
           success: true,
           data: cachedData,
           cached: true,
-          cachedAt: getCacheTimestamp() || undefined,
+          cachedAt: getCacheTimestamp(cacheKey) || undefined,
         };
         return NextResponse.json(response);
       }
@@ -62,7 +67,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: `Missing environment variables: ${missingVars.join(', ')}. Please configure your Google Ads API credentials.`,
+          error: 'Google Ads credentials not configured. Please add them in the admin panel.',
         } as GoogleAdsApiResponse,
         { status: 500 }
       );
@@ -70,13 +75,18 @@ export async function GET(request: NextRequest) {
 
     // Try to fetch from API
     try {
-      const client = getGoogleAdsClient();
-      const customerId = process.env.GOOGLE_ADS_CUSTOMER_ID!;
+      // Decrypt organization credentials
+      const clientId = decrypt(organization.googleAdsClientId);
+      const clientSecret = decrypt(organization.googleAdsClientSecret);
+      const refreshToken = decrypt(organization.googleAdsRefreshToken);
+      const customerId = organization.googleAdsCustomerId;
+
+      const client = getGoogleAdsClient(clientId, clientSecret);
 
       // Create customer instance with refresh token
       const customer = client.Customer({
         customer_id: customerId,
-        refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN!,
+        refresh_token: refreshToken,
       });
 
       const dateRange = getDateRange();
@@ -121,8 +131,8 @@ export async function GET(request: NextRequest) {
         dateRange,
       };
 
-      // Cache the successful result
-      setCachedMetrics(metrics);
+      // Cache the successful result with org-specific key
+      setCachedMetrics(metrics, cacheKey);
 
       const response: GoogleAdsApiResponse = {
         success: true,
@@ -135,14 +145,14 @@ export async function GET(request: NextRequest) {
       console.error('Google Ads API Error:', apiError);
 
       // If API call fails, try to return cached data
-      const cachedData = getCachedMetrics();
+      const cachedData = getCachedMetrics(cacheKey);
 
       if (cachedData) {
         const response: GoogleAdsApiResponse = {
           success: true,
           data: cachedData,
           cached: true,
-          cachedAt: getCacheTimestamp() || undefined,
+          cachedAt: getCacheTimestamp(cacheKey) || undefined,
           error: 'Using cached data due to API error',
         };
         return NextResponse.json(response);
@@ -161,18 +171,26 @@ export async function GET(request: NextRequest) {
   } catch (error: unknown) {
     console.error('Unexpected error:', error);
 
-    // Last resort: try to return cached data
-    const cachedData = getCachedMetrics();
+    // Try to get organization for cache lookup
+    try {
+      const { organization } = await getOrganizationFromHeaders();
+      if (organization) {
+        const cacheKey = `google-ads-metrics-${organization.id}`;
+        const cachedData = getCachedMetrics(cacheKey);
 
-    if (cachedData) {
-      const response: GoogleAdsApiResponse = {
-        success: true,
-        data: cachedData,
-        cached: true,
-        cachedAt: getCacheTimestamp() || undefined,
-        error: 'Using cached data due to unexpected error',
-      };
-      return NextResponse.json(response);
+        if (cachedData) {
+          const response: GoogleAdsApiResponse = {
+            success: true,
+            data: cachedData,
+            cached: true,
+            cachedAt: getCacheTimestamp(cacheKey) || undefined,
+            error: 'Using cached data due to unexpected error',
+          };
+          return NextResponse.json(response);
+        }
+      }
+    } catch (e) {
+      // Fallback to error response
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

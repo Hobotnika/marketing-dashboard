@@ -18,6 +18,13 @@ export const organizations = pgTable('organizations', {
   stripeSecretKey: text('stripe_secret_key'),
   googleSheetsId: text('google_sheets_id'),
   metaAccessToken: text('meta_access_token'),
+  metaAdAccountId: text('meta_ad_account_id'),
+
+  // Google Ads OAuth credentials (encrypted)
+  googleAdsClientId: text('google_ads_client_id'),
+  googleAdsClientSecret: text('google_ads_client_secret'),
+  googleAdsRefreshToken: text('google_ads_refresh_token'),
+  googleAdsCustomerId: text('google_ads_customer_id'),
 
   // Organization settings
   logoUrl: text('logo_url'),
