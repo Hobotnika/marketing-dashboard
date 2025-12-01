@@ -62,6 +62,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    /**
+     * TODO: Update for multi-tenant architecture
+     *
+     * Currently, this cron job calls API endpoints that are now protected with tenant security.
+     * This won't work because:
+     * 1. Tenant security requires user authentication
+     * 2. Tenant security requires subdomain headers
+     * 3. Cron jobs don't have either
+     *
+     * Solutions:
+     * 1. Fetch all organizations from DB and iterate over each one
+     * 2. For each org, either:
+     *    a) Set proper headers (x-organization-id, etc.) and call APIs
+     *    b) Extract metric fetching logic into functions and call directly with org credentials
+     * 3. Cache results per organization
+     *
+     * For now, this endpoint may not work correctly with tenant-secured APIs.
+     */
+
     // Rate limiting
     const identifier = request.headers.get('x-forwarded-for') || 'cron-job';
     if (!checkRateLimit(identifier)) {

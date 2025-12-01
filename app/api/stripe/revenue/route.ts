@@ -5,7 +5,7 @@ import type {
   StripeListResponse,
 } from '@/types/stripe';
 import { getCache, setCache } from '@/lib/cache';
-import { getOrganizationFromHeaders } from '@/lib/api/get-organization';
+import { withTenantSecurity } from '@/lib/api/tenant-security';
 import { decrypt } from '@/lib/db/encryption';
 
 const STRIPE_API_BASE = 'https://api.stripe.com/v1';
@@ -21,8 +21,10 @@ const getCacheKey = (orgId: string) => `stripe-revenue-${orgId}`;
  * Query params:
  * - startDate: YYYY-MM-DD (default: 30 days ago)
  * - endDate: YYYY-MM-DD (default: today)
+ *
+ * Security: Protected by withTenantSecurity wrapper
  */
-export async function GET(request: Request) {
+export const GET = withTenantSecurity(async (request: Request, context) => {
   try {
     const { searchParams } = new URL(request.url);
 
@@ -31,9 +33,8 @@ export async function GET(request: Request) {
     const startDate = searchParams.get('startDate') ||
       new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // Get organization from middleware headers
-    const { organization, error } = await getOrganizationFromHeaders();
-    if (error) return error;
+    // Use validated organization from security context
+    const { organization } = context;
 
     // Get organization-specific Stripe credentials
     if (!organization.stripeSecretKey) {
@@ -65,27 +66,15 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('❌ Stripe API Error:', error);
 
-    // Try to get organization for cache lookup
-    try {
-      const { organization } = await getOrganizationFromHeaders();
-      if (organization) {
-        const { searchParams } = new URL(request.url);
-        const endDate = searchParams.get('endDate') || new Date().toISOString().split('T')[0];
-        const startDate = searchParams.get('startDate') ||
-          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // Try to return cached data on error
+    const { searchParams } = new URL(request.url);
+    const endDate = searchParams.get('endDate') || new Date().toISOString().split('T')[0];
+    const startDate = searchParams.get('startDate') ||
+      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        return returnCachedData(startDate, endDate, organization.id);
-      }
-    } catch (e) {
-      // Fallback to error response
-    }
-
-    return NextResponse.json(
-      { error: 'Failed to fetch Stripe data' },
-      { status: 500 }
-    );
+    return returnCachedData(startDate, endDate, context.organizationId);
   }
-}
+});
 
 /**
  * Fetch all successful charges (handles pagination)

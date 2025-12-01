@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { GoogleAdsApi, enums } from 'google-ads-api';
 import { GoogleAdsMetrics, GoogleAdsApiResponse } from '@/types/google-ads';
 import { getCachedMetrics, setCachedMetrics, getCacheTimestamp } from '@/lib/cache';
 import { fetchWithFallback, monitoredFetch } from '@/lib/api-utils';
 import cacheManager, { generateCacheKey } from '@/lib/cache-manager';
-import { getOrganizationFromHeaders } from '@/lib/api/get-organization';
+import { withTenantSecurity } from '@/lib/api/tenant-security';
 import { decrypt } from '@/lib/db/encryption';
 
 // Initialize Google Ads API client with organization credentials
@@ -35,11 +35,16 @@ function getDateRange() {
   };
 }
 
-export async function GET(request: NextRequest) {
+/**
+ * GET /api/google-ads/metrics
+ * Fetch Google Ads metrics
+ *
+ * Security: Protected by withTenantSecurity wrapper
+ */
+export const GET = withTenantSecurity(async (request: Request, context) => {
   try {
-    // Get organization from middleware headers
-    const { organization, error: orgError } = await getOrganizationFromHeaders();
-    if (orgError) return orgError;
+    // Use validated organization from security context
+    const { organization } = context;
 
     const cacheKey = `google-ads-metrics-${organization.id}`;
 
@@ -171,26 +176,19 @@ export async function GET(request: NextRequest) {
   } catch (error: unknown) {
     console.error('Unexpected error:', error);
 
-    // Try to get organization for cache lookup
-    try {
-      const { organization } = await getOrganizationFromHeaders();
-      if (organization) {
-        const cacheKey = `google-ads-metrics-${organization.id}`;
-        const cachedData = getCachedMetrics(cacheKey);
+    // Try to return cached data on error
+    const cacheKey = `google-ads-metrics-${context.organizationId}`;
+    const cachedData = getCachedMetrics(cacheKey);
 
-        if (cachedData) {
-          const response: GoogleAdsApiResponse = {
-            success: true,
-            data: cachedData,
-            cached: true,
-            cachedAt: getCacheTimestamp(cacheKey) || undefined,
-            error: 'Using cached data due to unexpected error',
-          };
-          return NextResponse.json(response);
-        }
-      }
-    } catch (e) {
-      // Fallback to error response
+    if (cachedData) {
+      const response: GoogleAdsApiResponse = {
+        success: true,
+        data: cachedData,
+        cached: true,
+        cachedAt: getCacheTimestamp(cacheKey) || undefined,
+        error: 'Using cached data due to unexpected error',
+      };
+      return NextResponse.json(response);
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -202,4 +200,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

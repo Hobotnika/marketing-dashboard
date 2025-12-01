@@ -1,5 +1,5 @@
 import { headers } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { organizations, apiLogs } from '@/lib/db/schema';
@@ -75,7 +75,7 @@ export async function protectTenantRoute(): Promise<SecurityContext> {
   // 1. Get authenticated session
   const session = await auth();
 
-  if (!session || !session.user) {
+  if (!session || !session.user || !session.user.email) {
     throw new Error('Unauthorized - authentication required');
   }
 
@@ -88,7 +88,7 @@ export async function protectTenantRoute(): Promise<SecurityContext> {
     // Log security violation
     await logSecurityViolation({
       userId: session.user.id,
-      userEmail: session.user.email,
+      userEmail: session.user.email, // Already validated above
       userOrganizationId: session.user.organizationId,
       attemptedOrganizationId: tenantContext.organizationId,
       route: 'unknown', // Will be set by caller
@@ -104,7 +104,7 @@ export async function protectTenantRoute(): Promise<SecurityContext> {
   return {
     ...tenantContext,
     userId: session.user.id,
-    userEmail: session.user.email,
+    userEmail: session.user.email, // Already validated above
     userRole: session.user.role,
   };
 }
@@ -115,22 +115,19 @@ export async function protectTenantRoute(): Promise<SecurityContext> {
 export async function logApiRequest(data: {
   userId: string;
   organizationId: string;
+  apiName: string;
   endpoint: string;
-  method: string;
-  statusCode: number;
-  duration?: number;
+  status: 'success' | 'error';
   errorMessage?: string;
 }) {
   try {
     await db.insert(apiLogs).values({
       userId: data.userId,
       organizationId: data.organizationId,
+      apiName: data.apiName,
       endpoint: data.endpoint,
-      method: data.method,
-      statusCode: data.statusCode,
-      duration: data.duration,
+      status: data.status,
       errorMessage: data.errorMessage,
-      timestamp: new Date(),
     });
   } catch (error) {
     // Don't fail request if logging fails, but log to console
@@ -153,11 +150,10 @@ async function logSecurityViolation(data: {
     await db.insert(apiLogs).values({
       userId: data.userId,
       organizationId: data.attemptedOrganizationId,
+      apiName: 'SECURITY_VIOLATION',
       endpoint: data.route,
-      method: 'SECURITY_VIOLATION',
-      statusCode: 403,
+      status: 'error',
       errorMessage: `${data.message} | User: ${data.userEmail} | User Org: ${data.userOrganizationId} | Attempted Org: ${data.attemptedOrganizationId}`,
-      timestamp: new Date(),
     });
 
     // Also log to console for immediate visibility
@@ -189,59 +185,50 @@ export function createApiError(message: string, status: number = 500) {
  */
 export function withTenantSecurity(
   handler: (
-    request: Request,
+    request: Request | NextRequest,
     context: SecurityContext
-  ) => Promise<NextResponse>
+  ) => Promise<NextResponse<any>>
 ) {
-  return async (request: Request) => {
-    const startTime = Date.now();
-    let statusCode = 200;
-    let errorMessage: string | undefined;
-
+  return async (request: Request | NextRequest): Promise<NextResponse<any>> => {
     try {
       // Apply security checks
       const securityContext = await protectTenantRoute();
 
       // Execute handler with validated context
       const response = await handler(request, securityContext);
-      statusCode = response.status;
+
+      // Extract API name from endpoint (e.g., "/api/calendly/events" -> "calendly")
+      const endpoint = new URL(request.url).pathname;
+      const apiNameMatch = endpoint.match(/\/api\/([^/]+)/);
+      const apiName = apiNameMatch ? apiNameMatch[1] : 'unknown';
 
       // Log successful request
-      const duration = Date.now() - startTime;
       await logApiRequest({
         userId: securityContext.userId,
         organizationId: securityContext.organizationId,
-        endpoint: new URL(request.url).pathname,
-        method: request.method,
-        statusCode,
-        duration,
+        apiName,
+        endpoint,
+        status: 'success',
       });
 
       return response;
     } catch (error: any) {
-      // Determine status code and error message
-      if (error.message.includes('Unauthorized')) {
-        statusCode = 403;
-      } else if (error.message.includes('not found')) {
-        statusCode = 404;
-      } else {
-        statusCode = 500;
-      }
-
-      errorMessage = error.message || 'Unknown error';
+      const errorMessage = error.message || 'Unknown error';
 
       // Try to log the error (might fail if user/tenant not available)
       try {
         const session = await auth();
         if (session?.user) {
-          const duration = Date.now() - startTime;
+          const endpoint = new URL(request.url).pathname;
+          const apiNameMatch = endpoint.match(/\/api\/([^/]+)/);
+          const apiName = apiNameMatch ? apiNameMatch[1] : 'unknown';
+
           await logApiRequest({
             userId: session.user.id,
             organizationId: session.user.organizationId,
-            endpoint: new URL(request.url).pathname,
-            method: request.method,
-            statusCode,
-            duration,
+            apiName,
+            endpoint,
+            status: 'error',
             errorMessage,
           });
         }
@@ -250,6 +237,15 @@ export function withTenantSecurity(
       }
 
       console.error('API Error:', error);
+
+      // Determine status code
+      let statusCode = 500;
+      if (error.message.includes('Unauthorized')) {
+        statusCode = 403;
+      } else if (error.message.includes('not found')) {
+        statusCode = 404;
+      }
+
       return createApiError(errorMessage, statusCode);
     }
   };

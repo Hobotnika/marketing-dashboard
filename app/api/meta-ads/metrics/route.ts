@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import {
   MetaAdsApiResponse,
   MetaCampaignMetrics,
   MetaAdsMetrics,
 } from '@/types/meta-ads';
 import { getCachedMetrics, setCachedMetrics, getCacheTimestamp } from '@/lib/cache';
-import { getOrganizationFromHeaders } from '@/lib/api/get-organization';
+import { withTenantSecurity } from '@/lib/api/tenant-security';
 import { decrypt } from '@/lib/db/encryption';
 
 const META_GRAPH_API_VERSION = 'v18.0';
@@ -53,11 +53,16 @@ interface MetaCampaignData {
   };
 }
 
-export async function GET(request: NextRequest) {
+/**
+ * GET /api/meta-ads/metrics
+ * Fetch Meta Ads metrics
+ *
+ * Security: Protected by withTenantSecurity wrapper
+ */
+export const GET = withTenantSecurity(async (request: Request, context) => {
   try {
-    // Get organization from middleware headers
-    const { organization, error: orgError } = await getOrganizationFromHeaders();
-    if (orgError) return orgError;
+    // Use validated organization from security context
+    const { organization } = context;
 
     const cacheKey = `meta-ads-metrics-${organization.id}`;
 
@@ -261,26 +266,19 @@ export async function GET(request: NextRequest) {
   } catch (error: unknown) {
     console.error('Unexpected error:', error);
 
-    // Try to get organization for cache lookup
-    try {
-      const { organization } = await getOrganizationFromHeaders();
-      if (organization) {
-        const cacheKey = `meta-ads-metrics-${organization.id}`;
-        const cachedData = getCachedMetrics(cacheKey);
+    // Try to return cached data on error
+    const cacheKey = `meta-ads-metrics-${context.organizationId}`;
+    const cachedData = getCachedMetrics(cacheKey);
 
-        if (cachedData) {
-          const response: MetaAdsApiResponse = {
-            success: true,
-            data: cachedData as any,
-            cached: true,
-            cachedAt: getCacheTimestamp(cacheKey) || undefined,
-            error: 'Using cached data due to unexpected error',
-          };
-          return NextResponse.json(response);
-        }
-      }
-    } catch (e) {
-      // Fallback to error response
+    if (cachedData) {
+      const response: MetaAdsApiResponse = {
+        success: true,
+        data: cachedData as any,
+        cached: true,
+        cachedAt: getCacheTimestamp(cacheKey) || undefined,
+        error: 'Using cached data due to unexpected error',
+      };
+      return NextResponse.json(response);
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -292,4 +290,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

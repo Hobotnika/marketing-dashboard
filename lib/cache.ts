@@ -1,7 +1,7 @@
 import { GoogleAdsMetrics } from '@/types/google-ads';
 
-interface CacheEntry {
-  data: GoogleAdsMetrics;
+interface CacheEntry<T = any> {
+  data: T;
   timestamp: number;
 }
 
@@ -9,6 +9,31 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes in milliseconds
+
+// Generic cache functions
+export function getCache<T>(key: string): T | null {
+  const entry = cache.get(key);
+
+  if (!entry) {
+    return null;
+  }
+
+  const isExpired = Date.now() - entry.timestamp > CACHE_TTL;
+
+  if (isExpired) {
+    cache.delete(key);
+    return null;
+  }
+
+  return entry.data as T;
+}
+
+export function setCache<T>(key: string, data: T, ttl?: number): void {
+  cache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+}
 
 export function getCachedMetrics(key: string = 'google-ads-metrics'): GoogleAdsMetrics | null {
   const entry = cache.get(key);
