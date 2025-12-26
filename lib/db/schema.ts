@@ -1,14 +1,12 @@
-import { pgTable, text, timestamp, uuid, pgEnum, index, uniqueIndex } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { relations, sql } from 'drizzle-orm';
 
-// Enums
-export const organizationStatusEnum = pgEnum('organization_status', ['active', 'inactive', 'trial']);
-export const userRoleEnum = pgEnum('user_role', ['admin', 'viewer']);
-export const apiLogStatusEnum = pgEnum('api_log_status', ['success', 'error']);
+// SQLite doesn't have native enums, so we use text with check constraints
+// Enum values are enforced at the application level
 
 // Organizations table
-export const organizations = pgTable('organizations', {
-  id: uuid('id').defaultRandom().primaryKey(),
+export const organizations = sqliteTable('organizations', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text('name').notNull(),
   subdomain: text('subdomain').notNull().unique(),
 
@@ -28,44 +26,44 @@ export const organizations = pgTable('organizations', {
 
   // Organization settings
   logoUrl: text('logo_url'),
-  status: organizationStatusEnum('status').notNull().default('trial'),
+  status: text('status', { enum: ['active', 'inactive', 'trial'] }).notNull().default('trial'),
 
-  // Timestamps
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  // Timestamps (stored as ISO strings in SQLite)
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   subdomainIdx: uniqueIndex('subdomain_idx').on(table.subdomain),
 }));
 
 // Users table
-export const users = pgTable('users', {
-  id: uuid('id').defaultRandom().primaryKey(),
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   name: text('name').notNull(),
-  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
-  role: userRoleEnum('role').notNull().default('viewer'),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  role: text('role', { enum: ['admin', 'viewer'] }).notNull().default('viewer'),
 
   // Timestamps
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   emailIdx: uniqueIndex('email_idx').on(table.email),
   organizationIdx: index('user_organization_idx').on(table.organizationId),
 }));
 
 // API Logs table (audit trail)
-export const apiLogs = pgTable('api_logs', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+export const apiLogs = sqliteTable('api_logs', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
   apiName: text('api_name').notNull(), // ex: "calendly", "stripe", "meta"
   endpoint: text('endpoint').notNull(), // ex: "/api/calendly/events"
-  status: apiLogStatusEnum('status').notNull(),
+  status: text('status', { enum: ['success', 'error'] }).notNull(),
   errorMessage: text('error_message'),
 
   // Timestamp
-  timestamp: timestamp('timestamp').defaultNow().notNull(),
+  timestamp: text('timestamp').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   organizationIdx: index('log_organization_idx').on(table.organizationId),
   timestampIdx: index('log_timestamp_idx').on(table.timestamp),

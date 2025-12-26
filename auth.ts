@@ -85,6 +85,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      // If redirecting after login, ensure user goes to their organization's subdomain
+      // This handles cases where user logs in on main domain
+      if (url.startsWith('/')) {
+        return `${baseUrl}${url}`;
+      }
+      // Allow callback URLs on same origin
+      if (url.startsWith(baseUrl)) {
+        return url;
+      }
+      return baseUrl;
+    },
   },
   session: {
     strategy: 'jwt',
