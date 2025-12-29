@@ -17,9 +17,9 @@ export async function POST(request: Request) {
     }
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20241022',
-      max_tokens: 4096,
-      system: "You're an experienced Facebook Ads specialist. Create 3 long-form ad variations (800-1200 words each) using PASTOR, Story-Bridge, and Social Proof formulas. Return as JSON.",
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 8192,
+      system: "You're an experienced Facebook Ads specialist. Create 3 long-form ad variations (600-900 words each) using PASTOR, Story-Bridge, and Social Proof formulas. Return as JSON.",
       messages: [
         {
           role: 'user',
@@ -32,23 +32,23 @@ Please return a JSON object with this exact structure:
     {
       "formula": "PASTOR",
       "hook": "Opening hook",
-      "full_copy": "Complete 800-1200 word ad copy",
+      "full_copy": "Complete 600-900 word ad copy",
       "cta": "Call to action",
-      "word_count": 950
+      "word_count": 750
     },
     {
       "formula": "Story-Bridge",
       "hook": "Opening hook",
-      "full_copy": "Complete 800-1200 word ad copy",
+      "full_copy": "Complete 600-900 word ad copy",
       "cta": "Call to action",
-      "word_count": 1050
+      "word_count": 850
     },
     {
       "formula": "Social Proof",
       "hook": "Opening hook",
-      "full_copy": "Complete 800-1200 word ad copy",
+      "full_copy": "Complete 600-900 word ad copy",
       "cta": "Call to action",
-      "word_count": 890
+      "word_count": 700
     }
   ]
 }`,
@@ -57,9 +57,12 @@ Please return a JSON object with this exact structure:
     });
 
     // Extract the JSON from Claude's response
-    const responseText = message.content[0].type === 'text'
+    let responseText = message.content[0].type === 'text'
       ? message.content[0].text
       : '';
+
+    // Remove markdown code fences if present
+    responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
 
     // Parse the JSON response
     let result;
