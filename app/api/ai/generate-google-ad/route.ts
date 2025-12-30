@@ -1,11 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { aiPrompts } from '@/lib/db/schema';
+import { aiPrompts, organizations } from '@/lib/db/schema';
 import { protectTenantRoute } from '@/lib/api/tenant-security';
 import { eq, and, isNull, or } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { substitutePromptVariables } from '@/lib/utils/prompt-helpers';
+import { parseBrandVoice, injectBrandVoice, getGoogleAdsBrandVoiceTemplate } from '@/lib/utils/brand-voice';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -77,6 +78,32 @@ export async function POST(request: Request) {
       );
     }
 
+    // Fetch organization's brand voice profile
+    const [organization] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, context.organizationId))
+      .limit(1);
+
+    if (!organization) {
+      return NextResponse.json(
+        { error: 'Organization not found' },
+        { status: 404 }
+      );
+    }
+
+    const brandVoice = parseBrandVoice(organization.brandVoiceProfile);
+
+    if (!brandVoice) {
+      return NextResponse.json(
+        {
+          error: 'Brand voice not set. Please set up your Brand Voice in Settings first.',
+          redirect: '/dashboard/settings/brand-voice'
+        },
+        { status: 400 }
+      );
+    }
+
     // Substitute variables in prompt text
     const promptVariables = {
       landing_page,
@@ -85,12 +112,23 @@ export async function POST(request: Request) {
       match_type,
     };
 
-    const userPromptText = substitutePromptVariables(prompt.promptText, promptVariables);
+    let userPromptText = substitutePromptVariables(prompt.promptText, promptVariables);
+
+    // Inject brand voice into the prompt
+    const brandVoiceTemplate = getGoogleAdsBrandVoiceTemplate();
+    const brandVoiceSection = injectBrandVoice(brandVoiceTemplate, brandVoice);
+
+    // Prepend brand voice guidelines to the user prompt
+    userPromptText = `${brandVoiceSection}\n\n${userPromptText}`;
+
+    const systemPrompt = `You're an expert Google Ads specialist creating a complete ad campaign optimized for 10/10 Quality Score.
+
+You are writing for ${brandVoice.brand_name}. Headlines should sound like ${brandVoice.brand_name}, not generic ads. Match their tone and style.`;
 
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 8192,
-      system: `You're an expert Google Ads specialist creating a complete ad campaign optimized for 10/10 Quality Score.`,
+      system: systemPrompt,
       messages: [
         {
           role: 'user',

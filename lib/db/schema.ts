@@ -28,6 +28,9 @@ export const organizations = sqliteTable('organizations', {
   logoUrl: text('logo_url'),
   status: text('status', { enum: ['active', 'inactive', 'trial'] }).notNull().default('trial'),
 
+  // Brand Voice Profile (JSON stored as text)
+  brandVoiceProfile: text('brand_voice_profile'), // JSON: brand identity, tone, examples, rules
+
   // Timestamps (stored as ISO strings in SQLite)
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),

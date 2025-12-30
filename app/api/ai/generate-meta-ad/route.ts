@@ -1,11 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { aiPrompts } from '@/lib/db/schema';
+import { aiPrompts, organizations } from '@/lib/db/schema';
 import { protectTenantRoute } from '@/lib/api/tenant-security';
 import { eq, and, isNull, or } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { substitutePromptVariables } from '@/lib/utils/prompt-helpers';
+import { parseBrandVoice, injectBrandVoice, getMetaAdsBrandVoiceTemplate } from '@/lib/utils/brand-voice';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -73,17 +74,58 @@ export async function POST(request: Request) {
       );
     }
 
+    // Fetch organization's brand voice profile
+    const [organization] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, context.organizationId))
+      .limit(1);
+
+    if (!organization) {
+      return NextResponse.json(
+        { error: 'Organization not found' },
+        { status: 404 }
+      );
+    }
+
+    const brandVoice = parseBrandVoice(organization.brandVoiceProfile);
+
+    if (!brandVoice) {
+      return NextResponse.json(
+        {
+          error: 'Brand voice not set. Please set up your Brand Voice in Settings first.',
+          redirect: '/dashboard/settings/brand-voice'
+        },
+        { status: 400 }
+      );
+    }
+
     // Substitute variables in prompt text
     const promptVariables = {
       landing_page,
     };
 
-    const userPromptText = substitutePromptVariables(prompt.promptText, promptVariables);
+    let userPromptText = substitutePromptVariables(prompt.promptText, promptVariables);
+
+    // Inject brand voice into the prompt
+    const brandVoiceTemplate = getMetaAdsBrandVoiceTemplate();
+    const brandVoiceSection = injectBrandVoice(brandVoiceTemplate, brandVoice);
+
+    // Prepend brand voice guidelines to the user prompt
+    userPromptText = `${brandVoiceSection}\n\n${userPromptText}`;
+
+    const systemPrompt = `You're an experienced Facebook Ads specialist writing as ${brandVoice.brand_name}.
+
+Create 3 long-form ad variations (600-900 words each) using PASTOR, Story-Bridge, and Social Proof formulas.
+
+CRITICAL: Write in ${brandVoice.brand_name}'s exact voice and tone. Match the style, energy, and personality shown in their examples. Sound like ${brandVoice.brand_name}, NOT a generic AI copywriter.
+
+Return as JSON.`;
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 8192,
-      system: "You're an experienced Facebook Ads specialist. Create 3 long-form ad variations (600-900 words each) using PASTOR, Story-Bridge, and Social Proof formulas. Return as JSON.",
+      system: systemPrompt,
       messages: [
         {
           role: 'user',

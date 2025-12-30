@@ -101,6 +101,28 @@ export default function DashboardHeader({
             Saved Ads
           </Link>
 
+          {/* Brand Voice Link */}
+          <Link
+            href="/dashboard/settings/brand-voice"
+            className="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors flex items-center gap-2 shadow-md hover:shadow-lg border border-orange-300 dark:border-orange-700"
+            title="Set your brand voice for AI content"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+              />
+            </svg>
+            Brand Voice
+          </Link>
+
           {/* AI Prompts Link */}
           <Link
             href="/dashboard/settings/prompts"
