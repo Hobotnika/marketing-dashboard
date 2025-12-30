@@ -22,6 +22,10 @@ export default function MetaAdCreatePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savedVariations, setSavedVariations] = useState<Set<number>>(new Set());
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!landingPage.trim()) {
@@ -50,6 +54,80 @@ export default function MetaAdCreatePage() {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    if (!result) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(null);
+
+    try {
+      const response = await fetch('/api/ads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          variations: result.variations,
+          landing_page: landingPage,
+          ad_type: 'meta',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to save ads');
+      }
+
+      setSaveSuccess(data.message);
+      // Mark all as saved
+      setSavedVariations(new Set(result.variations.map((_, i) => i)));
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSaveSuccess(null), 5000);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveVariation = async (index: number) => {
+    if (!result) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(null);
+
+    try {
+      const variation = result.variations[index];
+      const response = await fetch('/api/ads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          variations: [variation],
+          landing_page: landingPage,
+          ad_type: 'meta',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to save ad');
+      }
+
+      setSaveSuccess(`Saved "${variation.formula}" variation`);
+      // Mark this variation as saved
+      setSavedVariations(prev => new Set(prev).add(index));
+
+      setTimeout(() => setSaveSuccess(null), 5000);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -129,6 +207,55 @@ export default function MetaAdCreatePage() {
               </p>
             </div>
 
+            {/* Save All Button */}
+            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-4 border border-gray-200 dark:border-zinc-800 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">
+                  Save these variations to your library
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Save all {result.variations.length} variations as drafts for later use
+                </p>
+              </div>
+              <button
+                onClick={handleSaveAll}
+                disabled={isSaving || savedVariations.size === result.variations.length}
+                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {savedVariations.size === result.variations.length ? (
+                  <>
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    All Saved
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    {isSaving ? 'Saving...' : 'Save All Variations'}
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Success/Error Messages */}
+            {saveSuccess && (
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400 flex items-center gap-2">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                {saveSuccess}
+              </div>
+            )}
+
+            {saveError && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
+                {saveError}
+              </div>
+            )}
+
             {/* Variations */}
             <div className="space-y-6">
               {result.variations.map((variation, index) => (
@@ -175,14 +302,35 @@ export default function MetaAdCreatePage() {
                       </p>
                     </div>
 
-                    <div className="pt-4 border-t border-gray-200 dark:border-zinc-800">
+                    <div className="pt-4 border-t border-gray-200 dark:border-zinc-800 flex gap-3">
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(variation.full_copy);
                         }}
-                        className="px-4 py-2 bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors text-sm font-medium"
+                        className="flex-1 px-4 py-2 bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors text-sm font-medium"
                       >
                         Copy to Clipboard
+                      </button>
+                      <button
+                        onClick={() => handleSaveVariation(index)}
+                        disabled={isSaving || savedVariations.has(index)}
+                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {savedVariations.has(index) ? (
+                          <>
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            Saved
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                            Save
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>

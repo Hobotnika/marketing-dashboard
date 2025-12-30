@@ -37,10 +37,23 @@ export async function getTenantContext(): Promise<TenantContext> {
   const organizationSubdomain = headersList.get('x-organization-subdomain');
   const organizationName = headersList.get('x-organization-name');
 
+  // Debug logging
+  console.log('getTenantContext - Headers:', {
+    organizationId: organizationId || 'missing',
+    organizationSubdomain: organizationSubdomain || 'missing',
+    organizationName: organizationName || 'missing',
+    host: headersList.get('host') || 'missing',
+  });
+
   // If headers are missing, it means middleware didn't set them
   // This should only happen on non-tenant routes (main domain, admin)
   if (!organizationId || !organizationSubdomain) {
-    throw new Error('Tenant context not found - not a tenant subdomain');
+    throw new Error(
+      `Tenant context not found - not a tenant subdomain. ` +
+      `Headers: orgId=${organizationId || 'missing'}, ` +
+      `subdomain=${organizationSubdomain || 'missing'}, ` +
+      `host=${headersList.get('host') || 'missing'}`
+    );
   }
 
   // Fetch full organization data (including encrypted credentials)

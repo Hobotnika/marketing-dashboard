@@ -8,10 +8,9 @@ import { eq } from 'drizzle-orm';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip middleware for static files and API routes
+  // Skip middleware for static files only
   if (
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/api') ||
     pathname.match(/\.(ico|png|jpg|jpeg|svg|gif|woff|woff2|ttf|eot)$/)
   ) {
     return NextResponse.next();
@@ -22,6 +21,47 @@ export async function middleware(request: NextRequest) {
   const subdomain = getSubdomain(host);
 
   console.log('Middleware - Host:', host, 'Path:', pathname, 'Subdomain:', subdomain || 'none');
+
+  // Handle API routes - need to set tenant context headers but skip auth redirects
+  if (pathname.startsWith('/api')) {
+    // For tenant subdomains, set organization headers for API routes
+    if (subdomain && subdomain !== 'www' && subdomain !== 'admin') {
+      try {
+        const organization = await db.query.organizations.findFirst({
+          where: eq(organizations.subdomain, subdomain),
+        });
+
+        if (organization) {
+          const session = await auth();
+          const response = NextResponse.next();
+
+          // Set tenant context headers
+          response.headers.set('x-organization-id', organization.id);
+          response.headers.set('x-organization-subdomain', organization.subdomain);
+          response.headers.set('x-organization-name', organization.name);
+
+          // Set user context if authenticated
+          if (session) {
+            response.headers.set('x-user-id', session.user.id);
+            response.headers.set('x-user-role', session.user.role);
+          }
+
+          console.log('API Route - Set tenant headers:', {
+            orgId: organization.id,
+            subdomain: organization.subdomain,
+            userId: session?.user.id || 'none',
+          });
+
+          return response;
+        }
+      } catch (error) {
+        console.error('Error setting API tenant context:', error);
+      }
+    }
+
+    // For non-tenant API routes, just pass through
+    return NextResponse.next();
+  }
 
   // CASE 1: Main domain (no subdomain or www) → Landing page
   if (!subdomain || subdomain === 'www') {

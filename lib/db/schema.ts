@@ -69,10 +69,43 @@ export const apiLogs = sqliteTable('api_logs', {
   timestampIdx: index('log_timestamp_idx').on(table.timestamp),
 }));
 
+// Ads table (AI-generated and manual ad variations)
+export const ads = sqliteTable('ads', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+
+  // Ad metadata
+  ai_generated: integer('ai_generated', { mode: 'boolean' }).notNull().default(false),
+  ai_prompt: text('ai_prompt'), // Formula: "PASTOR", "Story-Bridge", "Social Proof"
+  status: text('status', { enum: ['draft', 'active', 'paused', 'archived'] }).notNull().default('draft'),
+  ad_type: text('ad_type', { enum: ['meta', 'google'] }).notNull(),
+
+  // Ad content
+  headline: text('headline').notNull(), // Hook text
+  body_text: text('body_text').notNull(), // Full copy
+  call_to_action: text('call_to_action').notNull(), // CTA
+  landing_page: text('landing_page'), // URL
+
+  // Metrics
+  word_count: integer('word_count'),
+  platform_ad_id: text('platform_ad_id'), // ID from Meta/Google if published
+
+  // Timestamps
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('ad_organization_idx').on(table.organizationId),
+  statusIdx: index('ad_status_idx').on(table.status),
+  aiGeneratedIdx: index('ad_ai_generated_idx').on(table.ai_generated),
+  createdAtIdx: index('ad_created_at_idx').on(table.createdAt),
+}));
+
 // Relations
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
   apiLogs: many(apiLogs),
+  ads: many(ads),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -81,6 +114,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [organizations.id],
   }),
   apiLogs: many(apiLogs),
+  ads: many(ads),
 }));
 
 export const apiLogsRelations = relations(apiLogs, ({ one }) => ({
@@ -94,6 +128,17 @@ export const apiLogsRelations = relations(apiLogs, ({ one }) => ({
   }),
 }));
 
+export const adsRelations = relations(ads, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [ads.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [ads.userId],
+    references: [users.id],
+  }),
+}));
+
 // Types
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
@@ -103,3 +148,6 @@ export type NewUser = typeof users.$inferInsert;
 
 export type ApiLog = typeof apiLogs.$inferSelect;
 export type NewApiLog = typeof apiLogs.$inferInsert;
+
+export type Ad = typeof ads.$inferSelect;
+export type NewAd = typeof ads.$inferInsert;
