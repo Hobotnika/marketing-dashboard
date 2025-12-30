@@ -91,6 +91,9 @@ export const ads = sqliteTable('ads', {
   word_count: integer('word_count'),
   platform_ad_id: text('platform_ad_id'), // ID from Meta/Google if published
 
+  // Platform-specific configuration (JSON stored as text)
+  platform_config: text('platform_config'), // Complex data for Google Ads RSA + extensions
+
   // Timestamps
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
