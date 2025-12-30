@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import MetaAdPreview from '@/components/ads/MetaAdPreview';
 
 interface AdVariation {
   formula: string;
@@ -391,6 +392,21 @@ export default function MetaAdCreatePage() {
                           </>
                         )}
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Facebook-style Ad Preview */}
+                  <div className="mt-6 pt-6 border-t border-gray-200 dark:border-zinc-800">
+                    <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-4">
+                      Facebook Ad Preview
+                    </h3>
+                    <div className="flex justify-center">
+                      <MetaAdPreview
+                        adCopy={variation.full_copy}
+                        headline={variation.hook}
+                        cta={variation.cta}
+                        landingPageUrl={landingPage}
+                      />
                     </div>
                   </div>
                 </div>
