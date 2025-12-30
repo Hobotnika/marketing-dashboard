@@ -135,12 +135,35 @@ export const ads = sqliteTable('ads', {
   createdAtIdx: index('ad_created_at_idx').on(table.createdAt),
 }));
 
+// Customer Avatars table (AI-generated customer personas for ad rating)
+export const customerAvatars = sqliteTable('customer_avatars', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Avatar Set Info
+  setName: text('set_name', { length: 100 }).notNull(), // "E-commerce Store Owners"
+  niche: text('niche', { length: 200 }).notNull(), // "ecommerce store owner"
+  description: text('description'), // Optional description of the set
+
+  // Individual Avatar Data
+  avatarName: text('avatar_name', { length: 100 }).notNull(), // "Sarah Chen"
+  personaData: text('persona_data').notNull(), // JSON: demographics, psychographics, etc.
+
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationSetIdx: index('avatar_organization_set_idx').on(table.organizationId, table.setName),
+  activeIdx: index('avatar_active_idx').on(table.isActive),
+}));
+
 // Relations
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
   apiLogs: many(apiLogs),
   ads: many(ads),
   aiPrompts: many(aiPrompts),
+  customerAvatars: many(customerAvatars),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -186,6 +209,13 @@ export const aiPromptsRelations = relations(aiPrompts, ({ one }) => ({
   }),
 }));
 
+export const customerAvatarsRelations = relations(customerAvatars, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [customerAvatars.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
 // Types
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
@@ -201,3 +231,6 @@ export type NewAd = typeof ads.$inferInsert;
 
 export type AiPrompt = typeof aiPrompts.$inferSelect;
 export type NewAiPrompt = typeof aiPrompts.$inferInsert;
+
+export type CustomerAvatar = typeof customerAvatars.$inferSelect;
+export type NewCustomerAvatar = typeof customerAvatars.$inferInsert;
