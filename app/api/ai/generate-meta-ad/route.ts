@@ -1,5 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { aiPrompts } from '@/lib/db/schema';
+import { protectTenantRoute } from '@/lib/api/tenant-security';
+import { eq, and, isNull, or } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { substitutePromptVariables } from '@/lib/utils/prompt-helpers';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -7,7 +13,10 @@ const anthropic = new Anthropic({
 
 export async function POST(request: Request) {
   try {
-    const { landing_page } = await request.json();
+    // Authenticate and get tenant context
+    const context = await protectTenantRoute();
+
+    const { landing_page, prompt_id } = await request.json();
 
     if (!landing_page) {
       return NextResponse.json(
@@ -16,6 +25,61 @@ export async function POST(request: Request) {
       );
     }
 
+    // Fetch prompt from database
+    let prompt;
+    if (prompt_id) {
+      // User selected specific prompt
+      const prompts = await db.select()
+        .from(aiPrompts)
+        .where(
+          and(
+            eq(aiPrompts.id, prompt_id),
+            or(
+              eq(aiPrompts.organizationId, context.organizationId),
+              isNull(aiPrompts.organizationId)
+            ),
+            eq(aiPrompts.category, 'meta_ads'),
+            eq(aiPrompts.isActive, true)
+          )
+        )
+        .limit(1);
+
+      prompt = prompts[0];
+    } else {
+      // Use default for this category - first try org default, then system default
+      const prompts = await db.select()
+        .from(aiPrompts)
+        .where(
+          and(
+            eq(aiPrompts.category, 'meta_ads'),
+            or(
+              eq(aiPrompts.organizationId, context.organizationId),
+              isNull(aiPrompts.organizationId)
+            ),
+            eq(aiPrompts.isDefault, true),
+            eq(aiPrompts.isActive, true)
+          )
+        )
+        .orderBy(aiPrompts.organizationId) // Org prompts before system prompts
+        .limit(1);
+
+      prompt = prompts[0];
+    }
+
+    if (!prompt) {
+      return NextResponse.json(
+        { error: 'No active Meta Ads prompt found. Please create a prompt or contact support.' },
+        { status: 404 }
+      );
+    }
+
+    // Substitute variables in prompt text
+    const promptVariables = {
+      landing_page,
+    };
+
+    const userPromptText = substitutePromptVariables(prompt.promptText, promptVariables);
+
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 8192,
@@ -23,38 +87,15 @@ export async function POST(request: Request) {
       messages: [
         {
           role: 'user',
-          content: `Analyze this landing page and create 3 long-form ad copy variations: ${landing_page}
-
-Please return a JSON object with this exact structure:
-{
-  "analysis": "Brief analysis of the landing page and target audience",
-  "variations": [
-    {
-      "formula": "PASTOR",
-      "hook": "Opening hook",
-      "full_copy": "Complete 600-900 word ad copy",
-      "cta": "Call to action",
-      "word_count": 750
-    },
-    {
-      "formula": "Story-Bridge",
-      "hook": "Opening hook",
-      "full_copy": "Complete 600-900 word ad copy",
-      "cta": "Call to action",
-      "word_count": 850
-    },
-    {
-      "formula": "Social Proof",
-      "hook": "Opening hook",
-      "full_copy": "Complete 600-900 word ad copy",
-      "cta": "Call to action",
-      "word_count": 700
-    }
-  ]
-}`,
+          content: userPromptText,
         },
       ],
     });
+
+    // Track usage
+    await db.update(aiPrompts)
+      .set({ usageCount: sql`${aiPrompts.usageCount} + 1` })
+      .where(eq(aiPrompts.id, prompt.id));
 
     // Extract the JSON from Claude's response
     let responseText = message.content[0].type === 'text'

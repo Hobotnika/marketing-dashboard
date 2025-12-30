@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface Headline {
   text: string;
@@ -76,6 +77,13 @@ interface GoogleAdResponse {
   };
 }
 
+interface AiPrompt {
+  id: string;
+  name: string;
+  description: string | null;
+  isDefault: boolean;
+}
+
 export default function GoogleAdCreatePage() {
   const router = useRouter();
   const [landingPage, setLandingPage] = useState('');
@@ -83,9 +91,23 @@ export default function GoogleAdCreatePage() {
   const [secondaryKeywords, setSecondaryKeywords] = useState<string[]>([]);
   const [secondaryKeywordInput, setSecondaryKeywordInput] = useState('');
   const [matchType, setMatchType] = useState<'broad' | 'phrase' | 'exact'>('broad');
+  const [selectedPromptId, setSelectedPromptId] = useState<string>('');
+  const [prompts, setPrompts] = useState<AiPrompt[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<GoogleAdResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch available prompts for Google Ads
+    fetch('/api/prompts?category=google_ads')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          setPrompts(data.data);
+        }
+      })
+      .catch(err => console.error('Failed to load prompts:', err));
+  }, []);
 
   const handleAddKeyword = () => {
     const keyword = secondaryKeywordInput.trim();
@@ -118,6 +140,7 @@ export default function GoogleAdCreatePage() {
           primary_keyword: primaryKeyword,
           secondary_keywords: secondaryKeywords,
           match_type: matchType,
+          prompt_id: selectedPromptId || undefined,
         }),
       });
 
@@ -162,6 +185,40 @@ export default function GoogleAdCreatePage() {
         {/* Form */}
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 border border-gray-200 dark:border-zinc-800 mb-8">
           <div className="space-y-4">
+            {/* AI Prompt Template Selector */}
+            <div>
+              <label
+                htmlFor="prompt-selector"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+              >
+                AI Prompt Template (Optional)
+              </label>
+              <select
+                id="prompt-selector"
+                value={selectedPromptId}
+                onChange={(e) => setSelectedPromptId(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-zinc-800 dark:text-white"
+                disabled={isLoading}
+              >
+                <option value="">Use Default</option>
+                {prompts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.isDefault ? ' ⭐' : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Choose a specialized prompt template or use the default.{' '}
+                <Link
+                  href="/dashboard/settings/prompts"
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Manage prompts
+                </Link>
+              </p>
+            </div>
+
             {/* Landing Page URL */}
             <div>
               <label

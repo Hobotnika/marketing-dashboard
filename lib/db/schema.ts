@@ -69,6 +69,34 @@ export const apiLogs = sqliteTable('api_logs', {
   timestampIdx: index('log_timestamp_idx').on(table.timestamp),
 }));
 
+// AI Prompts table (database-stored prompts for AI generation)
+export const aiPrompts = sqliteTable('ai_prompts', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
+
+  name: text('name').notNull(),
+  description: text('description'),
+  category: text('category', { enum: ['meta_ads', 'google_ads'] }).notNull(),
+  promptType: text('prompt_type', { enum: ['default', 'local_business', 'ecommerce', 'saas', 'custom'] }).notNull().default('custom'),
+
+  promptText: text('prompt_text').notNull(),
+
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+
+  usageCount: integer('usage_count').notNull().default(0),
+  avgQualityScore: text('avg_quality_score'), // Stored as text in SQLite
+
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('prompt_organization_idx').on(table.organizationId),
+  categoryIdx: index('prompt_category_idx').on(table.category),
+  isDefaultIdx: index('prompt_is_default_idx').on(table.isDefault),
+  isActiveIdx: index('prompt_is_active_idx').on(table.isActive),
+}));
+
 // Ads table (AI-generated and manual ad variations)
 export const ads = sqliteTable('ads', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -109,6 +137,7 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
   apiLogs: many(apiLogs),
   ads: many(ads),
+  aiPrompts: many(aiPrompts),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -118,6 +147,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   }),
   apiLogs: many(apiLogs),
   ads: many(ads),
+  aiPrompts: many(aiPrompts),
 }));
 
 export const apiLogsRelations = relations(apiLogs, ({ one }) => ({
@@ -142,6 +172,17 @@ export const adsRelations = relations(ads, ({ one }) => ({
   }),
 }));
 
+export const aiPromptsRelations = relations(aiPrompts, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [aiPrompts.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [aiPrompts.createdBy],
+    references: [users.id],
+  }),
+}));
+
 // Types
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
@@ -154,3 +195,6 @@ export type NewApiLog = typeof apiLogs.$inferInsert;
 
 export type Ad = typeof ads.$inferSelect;
 export type NewAd = typeof ads.$inferInsert;
+
+export type AiPrompt = typeof aiPrompts.$inferSelect;
+export type NewAiPrompt = typeof aiPrompts.$inferInsert;
