@@ -157,6 +157,34 @@ export const customerAvatars = sqliteTable('customer_avatars', {
   activeIdx: index('avatar_active_idx').on(table.isActive),
 }));
 
+// Ad Ratings table (Avatar feedback on ads)
+export const adRatings = sqliteTable('ad_ratings', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  adId: text('ad_id').references(() => ads.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Avatar Set Info
+  avatarSetName: text('avatar_set_name', { length: 100 }).notNull(),
+  niche: text('niche', { length: 200 }).notNull(),
+
+  // Raw feedback from each avatar (JSON)
+  avatarFeedbacks: text('avatar_feedbacks').notNull(), // JSON: { [avatarName]: { feedback, sentiment, processing_time } }
+
+  // Summary stats
+  totalAvatars: integer('total_avatars').notNull().default(13),
+  positiveCount: integer('positive_count').notNull().default(0),
+  mixedCount: integer('mixed_count').notNull().default(0),
+  negativeCount: integer('negative_count').notNull().default(0),
+
+  processingTimeMs: integer('processing_time_ms'), // Total time to rate
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  adOrganizationIdx: index('rating_ad_organization_idx').on(table.adId, table.organizationId),
+  organizationIdx: index('rating_organization_idx').on(table.organizationId),
+  createdAtIdx: index('rating_created_at_idx').on(table.createdAt),
+}));
+
 // Relations
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
@@ -164,6 +192,7 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   ads: many(ads),
   aiPrompts: many(aiPrompts),
   customerAvatars: many(customerAvatars),
+  adRatings: many(adRatings),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -187,7 +216,7 @@ export const apiLogsRelations = relations(apiLogs, ({ one }) => ({
   }),
 }));
 
-export const adsRelations = relations(ads, ({ one }) => ({
+export const adsRelations = relations(ads, ({ one, many }) => ({
   organization: one(organizations, {
     fields: [ads.organizationId],
     references: [organizations.id],
@@ -196,6 +225,7 @@ export const adsRelations = relations(ads, ({ one }) => ({
     fields: [ads.userId],
     references: [users.id],
   }),
+  ratings: many(adRatings),
 }));
 
 export const aiPromptsRelations = relations(aiPrompts, ({ one }) => ({
@@ -212,6 +242,17 @@ export const aiPromptsRelations = relations(aiPrompts, ({ one }) => ({
 export const customerAvatarsRelations = relations(customerAvatars, ({ one }) => ({
   organization: one(organizations, {
     fields: [customerAvatars.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const adRatingsRelations = relations(adRatings, ({ one }) => ({
+  ad: one(ads, {
+    fields: [adRatings.adId],
+    references: [ads.id],
+  }),
+  organization: one(organizations, {
+    fields: [adRatings.organizationId],
     references: [organizations.id],
   }),
 }));
@@ -234,3 +275,6 @@ export type NewAiPrompt = typeof aiPrompts.$inferInsert;
 
 export type CustomerAvatar = typeof customerAvatars.$inferSelect;
 export type NewCustomerAvatar = typeof customerAvatars.$inferInsert;
+
+export type AdRating = typeof adRatings.$inferSelect;
+export type NewAdRating = typeof adRatings.$inferInsert;

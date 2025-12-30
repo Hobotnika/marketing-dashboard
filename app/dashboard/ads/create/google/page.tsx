@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import GoogleAdPreview from '@/components/ads/GoogleAdPreview';
+import RatingProgressModal from '@/components/ads/RatingProgressModal';
+import RatingResults from '@/components/ads/RatingResults';
 
 interface Headline {
   text: string;
