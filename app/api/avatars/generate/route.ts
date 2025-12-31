@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai'; // DeepSeek uses OpenAI-compatible API
 import type { Avatar } from '@/types/avatar';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+const deepseek = new OpenAI({
+  apiKey: process.env.DEEPSEEK_API_KEY,
+  baseURL: 'https://api.deepseek.com',
 });
 
 /**
@@ -167,25 +168,37 @@ QUALITY STANDARDS:
 - Prompt persona must be 300+ words of rich detail
 - Make each person feel completely unique and believable`;
 
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 32000, // Increased for much more detailed personas (12-15 avatars x ~2000 tokens each)
-      temperature: 1, // Higher temperature for more diversity
+    const response = await deepseek.chat.completions.create({
+      model: 'deepseek-reasoner', // DeepSeek R1 model
       messages: [
         {
-          role: 'user',
-          content: prompt,
+          role: 'system',
+          content: 'You are a world-class media planner with decades of experience developing customer personas through extensive interviews, surveys, and behavioral research.'
         },
+        {
+          role: 'user',
+          content: prompt
+        }
       ],
+      temperature: 1, // High for creative diversity
+      max_tokens: 32000,
     });
 
-    // Extract JSON from response
-    let responseText = message.content[0].type === 'text'
-      ? message.content[0].text
-      : '';
+    let generatedText = response.choices[0].message.content || '';
 
-    // Remove markdown code fences if present
-    responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
+    // DeepSeek R1 includes thinking process in <think> tags - strip them for final JSON
+    generatedText = generatedText.replace(/<think>[\s\S]*?<\/think>/g, '');
+
+    // Also strip any markdown code fences if present
+    generatedText = generatedText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
+    generatedText = generatedText.trim();
+
+    console.log('[Avatar Generation] Using DeepSeek R1 (deepseek-reasoner)');
+    console.log('[Avatar Generation] Niche:', niche);
+    console.log('[Avatar Generation] Response length:', generatedText.length, 'characters');
+
+    // Extract JSON from response
+    let responseText = generatedText;
 
     // Parse JSON
     let result: { avatars: Avatar[] };
@@ -229,11 +242,23 @@ QUALITY STANDARDS:
       message: `Generated ${avatarCount} ultra-detailed avatars successfully`,
     });
   } catch (error) {
-    console.error('Error generating avatars:', error);
+    console.error('DeepSeek avatar generation failed:', error);
+
+    // Check if API key is missing
+    if (!process.env.DEEPSEEK_API_KEY) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'DeepSeek API key not configured'
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to generate avatars',
+        error: 'Failed to generate personas with DeepSeek. Please try again.',
         details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
