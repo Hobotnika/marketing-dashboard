@@ -100,9 +100,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (avatars.length !== 13) {
+    if (avatars.length < 12 || avatars.length > 15) {
       return NextResponse.json(
-        { success: false, error: 'Exactly 13 avatars are required' },
+        { success: false, error: '12-15 avatars are required' },
         { status: 400 }
       );
     }

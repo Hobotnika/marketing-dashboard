@@ -133,7 +133,7 @@ export default function CreateAvatarSetPage() {
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">Create Avatar Set</h1>
           <p className="text-gray-400">
-            Generate 13 diverse customer personas for a specific niche
+            Generate 12-15 ultra-detailed customer personas for a specific niche
           </p>
         </div>
 
@@ -207,7 +207,7 @@ export default function CreateAvatarSetPage() {
                   disabled={!niche.trim()}
                   className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Generate 13 Avatars with AI
+                  Generate Ultra-Detailed Avatars with AI
                 </button>
               </div>
             </form>
@@ -225,8 +225,8 @@ export default function CreateAvatarSetPage() {
               AI is researching the <span className="text-blue-400">{niche}</span> niche
             </p>
             <p className="text-sm text-gray-500">
-              This typically takes 30-60 seconds. We're analyzing reviews, forums, social media,
-              and industry discussions to create realistic personas.
+              This typically takes 60-90 seconds. We're analyzing reviews, forums, social media,
+              and industry discussions to create ultra-detailed, realistic personas with 300+ word backgrounds.
             </p>
           </div>
         )}

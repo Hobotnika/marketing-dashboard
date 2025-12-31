@@ -29,76 +29,147 @@ export async function POST(request: NextRequest) {
           .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
           .join(' ');
 
-    const prompt = `You are a world-class media planner with decades of experience developing customer personas.
+    const prompt = `You are a world-class media planner with decades of experience developing customer personas through extensive interviews, surveys, and behavioral research.
 
-Research the "${niche}" industry and create 13 complete, diverse customer personas.
+TASK: Research the "${niche}" industry and create 12-15 ultra-realistic customer personas with exceptional depth.
 
-Requirements:
-- Mix of male and female (roughly 50/50)
-- Age range: 25-65 (varied)
-- Different income levels ($30k-$200k+)
-- Different experience levels (beginner to expert)
-- Different motivations and pain points
-- Realistic names (diverse backgrounds)
+CRITICAL: These must feel like REAL PEOPLE you could interview, not generic marketing descriptions.
 
-For each persona, provide:
+PERSONA COUNT STRATEGY:
+Analyze the diversity within "${niche}":
+- Simple niche (narrow demographics/psychographics) → 12 personas
+- Moderate diversity (some variation in segments) → 13-14 personas
+- Complex niche (high variation across multiple dimensions) → 15 personas
 
-1. Name (realistic, culturally diverse)
-2. Demographics:
-   - Age (specific number)
-   - Gender
-   - Location type (Urban/Suburban/Rural)
-   - Income range (e.g., "$50-75k")
+DEPTH REQUIREMENTS FOR EACH PERSONA:
 
-3. Psychographics:
-   - Top 3 struggles/pain points (specific to ${niche})
-   - Top 3 goals/desires (what they want to achieve)
-   - Top 3 fears (what keeps them up at night)
-   - Top 3 frustrations (day-to-day annoyances)
+1. DEMOGRAPHIC PROFILE (Hyper-Specific):
+   - Age: Exact number (not range)
+   - Gender: Appropriate for industry
+   - Location: Specific city/region
+   - Education: Specific degrees, certifications
+   - Income: Exact range (e.g., "$65,000 - $85,000 annually")
+   - Marital Status: Include if relevant
+   - Generation: Baby Boomer, Gen X, Millennial, Gen Z
 
-4. Buying Behavior (1-2 sentences about how they make purchases)
-5. Communication Style (how they prefer to be spoken to)
+2. PROFESSIONAL BACKGROUND (Tell Their Story):
+   - How they got into this industry
+   - Current situation with specific metrics
+   - Team size, revenue, years in business
+   - Day-to-day operations
+   - Recent challenges or transitions
 
-6. Prompt Persona (2-3 paragraphs describing this person in detail for use in AI prompts - include their background, current situation, challenges, and what they're looking for in solutions)
+3. PSYCHOGRAPHICS (Deep & Emotional):
+   Struggles (7+ specific items with details)
+   Goals (9 items: 5 primary, 4 secondary with numbers)
+   Fears (3+ specific fears with context)
+   Frustrations (4+ emotional frustrations)
 
-Base your personas on research from:
-- Online reviews (Amazon, Yelp, G2, Trustpilot)
-- Reddit discussions (r/entrepreneur, r/ecommerce, etc.)
-- YouTube comments on industry videos
-- Social media (Twitter, LinkedIn, Facebook groups)
-- Industry forums and communities
+4. BUYING BEHAVIOR (1-2 sentences about purchase decisions)
 
-Make each persona unique, realistic, and distinct. Avoid stereotypes.
+5. COMMUNICATION STYLE (How they prefer to be communicated with)
+
+6. PROMPT PERSONA (CRITICAL - 3-4 Paragraphs, 300+ Words):
+   This is what will be used in AI prompts for ad rating.
+
+   Must include:
+   - Full background story (how they got here)
+   - Current situation with specific struggles
+   - What they're actively looking for RIGHT NOW
+   - How they make decisions
+   - What they're skeptical about
+   - Communication preferences
+   - Specific objections or concerns
+
+   Example quality:
+   "Jennifer is a 42-year-old certified life coach who launched 'Authentic Path Coaching' four years ago after her own career transition from corporate HR. She works with 15-20 clients monthly through one-on-one sessions and group programs from her Denver home office. Currently earning $75,000 annually, she's hit an income plateau and started Facebook/Instagram ads eight months ago with a $800 monthly budget. Her biggest frustration is attracting tire-kickers who can't afford her services, and her sales process takes 2-4 weeks from initial contact to enrollment, making it hard to track ROI. She's tried hiring two marketing agencies but felt they didn't understand her niche. She's tech-savvy with Zoom, Calendly, and Mailchimp but gets overwhelmed by ad platforms and funnel builders. When considering new tools, she needs clear ROI within 30 days because every dollar counts as a single mother. She prefers straightforward, data-driven communication without hype, and wants case studies from similar boutique coaches, not Fortune 500 examples."
+
+RESEARCH SOURCES:
+Base personas on real insights from:
+- Reddit: r/entrepreneur, r/smallbusiness, niche-specific subreddits
+- Review sites: G2, Trustpilot, Capterra (B2B), Amazon/Yelp (B2C)
+- YouTube: Comments on "how-to" and "day in the life" videos
+- LinkedIn: Industry group discussions
+- Facebook Groups: Industry-specific communities
+- Quora: Questions about challenges
+- Industry blogs: Comment sections
+
+DIVERSITY CHECKLIST:
+✓ Age range: 25-65 (realistic distribution)
+✓ Gender: Realistic for industry
+✓ Income: $30k to $200k+ spread
+✓ Experience: Beginners, intermediate, experts
+✓ Geography: Urban, suburban, rural
+✓ Business stage: Starting, established, scaling
+✓ Risk tolerance: Conservative to aggressive
+✓ Tech savviness: Luddites to early adopters
+✓ Budget: Bootstrapped to well-funded
+✓ Personality: Analytical, creative, relationship-driven
 
 Return ONLY valid JSON (no markdown, no code fences):
 {
   "avatars": [
     {
-      "name": "Sarah Chen",
+      "name": "Full Name",
       "demographics": {
-        "age": 35,
+        "age": 42,
         "gender": "Female",
-        "location": "Urban",
-        "income": "$50-75k"
+        "location": "Denver, Colorado",
+        "income": "$65,000 - $85,000 annually"
       },
       "psychographics": {
-        "struggles": ["Cash flow management", "Scaling beyond $100k/year", "Finding reliable suppliers"],
-        "goals": ["Reach $1M revenue", "Hire first employee", "Automate operations"],
-        "fears": ["Going bankrupt", "Wasting ad spend", "Losing to Amazon"],
-        "frustrations": ["Unreliable suppliers", "Complex tax regulations", "Time-consuming customer service"]
+        "struggles": [
+          "Lead Quality Issues: Attracting tire-kickers who can't afford coaching services",
+          "Sales Conversion Timeline: 2-4 week sales process makes ROI tracking difficult",
+          "Marketing Agency Disappointments: Two agencies didn't understand boutique coaching niche",
+          "Income Plateau: Stuck at $75k annually despite working 60+ hours per week",
+          "Ad Platform Overwhelm: Facebook Ads Manager complexity causes decision paralysis",
+          "Inconsistent Lead Flow: Some months 5 quality leads, other months zero",
+          "Limited Marketing Budget: Every dollar counts as single mother, can't afford mistakes"
+        ],
+        "goals": [
+          "Scale Income: Increase from $75,000 to $150,000 annually within 2 years",
+          "Reduce Sales Cycle: Cut enrollment timeline from 2-4 weeks to under 1 week",
+          "Improve Lead Quality: Attract clients who can invest $3,000-$5,000 in coaching",
+          "Build Predictable Pipeline: 10-15 qualified leads monthly instead of feast-or-famine",
+          "Master Facebook Ads: Feel confident running campaigns without agency help",
+          "Launch Group Program: Add scalable revenue stream beyond 1-on-1 coaching",
+          "Automate Follow-Up: Implement email sequences that nurture leads automatically",
+          "Increase Pricing: Raise rates from $2,500 to $5,000 per client without losing conversions",
+          "Work-Life Balance: Reduce work hours from 60 to 40 per week while maintaining income"
+        ],
+        "fears": [
+          "Wasting Limited Budget: Can't afford to lose money on ineffective advertising",
+          "Making Wrong Investment: Fear of hiring another agency that doesn't deliver results",
+          "Income Instability: Worried about inconsistent monthly revenue affecting daughter's needs"
+        ],
+        "frustrations": [
+          "Comparison Trap: Seeing other coaches post about six-figure launches while she struggles",
+          "Tech Tool Overload: New marketing tools announced weekly, don't know which to choose",
+          "Impostor Syndrome: Great at coaching but feels like terrible marketer",
+          "Time Scarcity: Spending more time on marketing than actual coaching work"
+        ]
       },
-      "buying_behavior": "Sarah is cautious with spending and researches extensively before making purchases. She reads multiple reviews and prefers solutions with free trials.",
-      "communication_style": "Professional but approachable. Appreciates data-driven insights and case studies.",
-      "prompt_persona": "Sarah is a 35-year-old female e-commerce store owner who started her online boutique 3 years ago. She currently makes $75k annually but is struggling to scale past $100k despite working 60+ hours per week. Her biggest challenge is cash flow management - she often has money tied up in inventory while waiting for sales. Sarah is tech-savvy enough to run her own website but feels overwhelmed by the constant need to learn new marketing strategies. She's terrified of going bankrupt like her friend did last year, which makes her extremely cautious about ad spend. What she really needs is a reliable system that can help her automate customer acquisition without breaking the bank."
+      "buying_behavior": "Jennifer researches extensively before purchases, reading 5-10 reviews minimum. Prefers 30-day money-back guarantees and needs to see clear ROI within first month. Price-sensitive due to single income but will invest if convinced of value.",
+      "communication_style": "Prefers straightforward, data-driven communication without hype. Appreciates case studies from similar boutique coaches, not Fortune 500 examples. Values transparency about what's realistic to expect.",
+      "prompt_persona": "Jennifer is a 42-year-old certified life coach who launched 'Authentic Path Coaching' four years ago after her own career transition from corporate HR. She works with 15-20 clients monthly through one-on-one sessions and group programs from her Denver home office. Currently earning $75,000 annually, she's hit an income plateau and started Facebook/Instagram ads eight months ago with a $800 monthly budget. Her biggest frustration is attracting tire-kickers who can't afford her services, and her sales process takes 2-4 weeks from initial contact to enrollment, making it hard to track ROI. She's tried hiring two marketing agencies but felt they didn't understand her niche. She's tech-savvy with Zoom, Calendly, and Mailchimp but gets overwhelmed by ad platforms and funnel builders. When considering new tools, she needs clear ROI within 30 days because every dollar counts as a single mother. She prefers straightforward, data-driven communication without hype, and wants case studies from similar boutique coaches, not Fortune 500 examples. She's skeptical of 'get rich quick' marketing promises after being burned twice by agencies that over-promised. What she really needs is a predictable system to generate 10-15 qualified leads monthly who can actually afford her $2,500-5,000 coaching packages, with a sales process that doesn't require 2-4 weeks of back-and-forth before enrollment. She's willing to invest in the right solution but needs proof it works for solo coaches like her, not just big companies with unlimited budgets."
     }
   ]
 }
 
-Generate exactly 13 unique personas.`;
+Generate 12-15 ultra-realistic personas for: "${niche}"
+
+QUALITY STANDARDS:
+- Each persona must be so detailed you could roleplay as them
+- Include specific quotes they actually say
+- Reference real tools and platforms by name
+- Use exact numbers and metrics throughout
+- Prompt persona must be 300+ words of rich detail
+- Make each person feel completely unique and believable`;
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 16000,
+      max_tokens: 32000, // Increased for much more detailed personas (12-15 avatars x ~2000 tokens each)
       temperature: 1, // Higher temperature for more diversity
       messages: [
         {
@@ -137,12 +208,13 @@ Generate exactly 13 unique personas.`;
       );
     }
 
-    // Validate we got 13 avatars
-    if (!result.avatars || result.avatars.length !== 13) {
+    // Validate we got 12-15 avatars
+    const avatarCount = result.avatars?.length || 0;
+    if (!result.avatars || avatarCount < 12 || avatarCount > 15) {
       return NextResponse.json(
         {
           success: false,
-          error: `Expected 13 avatars, got ${result.avatars?.length || 0}`,
+          error: `Expected 12-15 avatars, got ${avatarCount}`,
         },
         { status: 500 }
       );
@@ -154,7 +226,7 @@ Generate exactly 13 unique personas.`;
       niche,
       description: description || null,
       avatars: result.avatars,
-      message: 'Generated 13 avatars successfully',
+      message: `Generated ${avatarCount} ultra-detailed avatars successfully`,
     });
   } catch (error) {
     console.error('Error generating avatars:', error);
