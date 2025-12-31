@@ -69,7 +69,8 @@ export default function MetaAdCreatePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [savedVariations, setSavedVariations] = useState<Set<number>>(new Set());
+  // Map: variationIndex -> actual database ID
+  const [savedVariations, setSavedVariations] = useState<Map<number, string>>(new Map());
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -167,8 +168,20 @@ export default function MetaAdCreatePage() {
       }
 
       setSaveSuccess(data.message);
-      // Mark all as saved
-      setSavedVariations(new Set(result.variations.map((_, i) => i)));
+
+      // Store real database IDs for each variation
+      if (data.data && Array.isArray(data.data)) {
+        setSavedVariations(prev => {
+          const newMap = new Map(prev);
+          data.data.forEach((savedAd: any, index: number) => {
+            if (savedAd.id) {
+              newMap.set(index, savedAd.id); // ✅ Real database ID
+              console.log(`[Save] Variation ${index} saved with ID:`, savedAd.id);
+            }
+          });
+          return newMap;
+        });
+      }
 
       // Clear success message after 5 seconds
       setTimeout(() => setSaveSuccess(null), 5000);
@@ -205,8 +218,17 @@ export default function MetaAdCreatePage() {
       }
 
       setSaveSuccess(`Saved "${variation.formula}" variation`);
-      // Mark this variation as saved
-      setSavedVariations(prev => new Set(prev).add(index));
+
+      // Store real database ID for this variation
+      if (data.data && Array.isArray(data.data) && data.data[0]?.id) {
+        const realAdId = data.data[0].id;
+        setSavedVariations(prev => {
+          const newMap = new Map(prev);
+          newMap.set(index, realAdId); // ✅ Real database ID
+          return newMap;
+        });
+        console.log(`[Save] Variation ${index} saved with real ID:`, realAdId);
+      }
 
       setTimeout(() => setSaveSuccess(null), 5000);
     } catch (err) {
@@ -218,6 +240,26 @@ export default function MetaAdCreatePage() {
 
   const handleRateAd = async (variationIndex: number) => {
     if (!selectedAvatarSet || !result) return;
+
+    // Check if ad is saved first
+    if (!savedVariations.has(variationIndex)) {
+      setSaveError('Please save this ad variation before rating');
+      setTimeout(() => setSaveError(null), 5000);
+      return;
+    }
+
+    // Get the REAL database ID
+    const realAdId = savedVariations.get(variationIndex)!;
+
+    console.log('[Frontend] Rating ad with REAL ID:', realAdId);
+    console.log('[Frontend] Variation index:', variationIndex);
+    console.log('[Frontend] Avatar set:', selectedAvatarSet);
+
+    if (!selectedAvatarSet) {
+      setSaveError('Please select an avatar set first');
+      setTimeout(() => setSaveError(null), 5000);
+      return;
+    }
 
     const variation = result.variations[variationIndex];
     const adCopy = `${variation.hook}\n\n${variation.full_copy}\n\n${variation.cta}`;
@@ -231,7 +273,8 @@ export default function MetaAdCreatePage() {
       // Note: We're not implementing real-time progress updates in this version
       // In production, you could use Server-Sent Events (SSE) or polling for real-time updates
 
-      const response = await fetch(`/api/ads/temp-${Date.now()}/rate`, {
+      // Use the REAL database ID
+      const response = await fetch(`/api/ads/${realAdId}/rate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -554,12 +597,28 @@ export default function MetaAdCreatePage() {
                       {/* Rate This Ad Button */}
                       <button
                         onClick={() => handleRateAd(index)}
-                        disabled={!selectedAvatarSet || isRating}
-                        className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        disabled={!savedVariations.has(index) || !selectedAvatarSet || isRating}
+                        className={`w-full px-4 py-3 ${
+                          savedVariations.has(index)
+                            ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700'
+                            : 'bg-gray-400 cursor-not-allowed'
+                        } text-white rounded-lg transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
                       >
-                        <span className="text-lg">⚡</span>
-                        {isRating && ratingVariationIndex === index ? 'Rating in Progress...' : 'Rate This Ad with Avatars'}
+                        <span className="text-lg">{savedVariations.has(index) ? '⚡' : '💾'}</span>
+                        {isRating && ratingVariationIndex === index
+                          ? 'Rating in Progress...'
+                          : savedVariations.has(index)
+                          ? 'Rate This Ad with Avatars'
+                          : 'Save First to Rate'}
                       </button>
+
+                      {/* Save requirement hint */}
+                      {!savedVariations.has(index) && (
+                        <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-2 flex items-center gap-1">
+                          <span>💡</span>
+                          <span>Save this variation first before rating</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 

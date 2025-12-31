@@ -43,18 +43,38 @@ export async function POST(
   const startTime = Date.now();
 
   try {
+    const { id: adId } = await params;
+
+    console.log('=== AVATAR RATING DEBUG ===');
+    console.log('Ad ID requested:', adId);
+    console.log('Full request URL:', request.url);
+
     const organizationId = request.headers.get('x-organization-id');
+    const userId = request.headers.get('x-user-id');
+    const subdomain = request.headers.get('x-organization-subdomain');
+
+    console.log('Tenant context:', {
+      organizationId,
+      subdomain,
+      userId
+    });
 
     if (!organizationId) {
+      console.error('[Avatar Rating] Organization ID not found in headers');
       return NextResponse.json(
         { success: false, error: 'Organization ID not found' },
         { status: 400 }
       );
     }
 
-    const { id: adId } = await params;
     const body = await request.json();
     const { avatarSetName, adCopy } = body;
+
+    console.log('Request body:', {
+      avatarSetName,
+      adCopyLength: adCopy?.length,
+      hasAdCopy: !!adCopy
+    });
 
     if (!avatarSetName || !adCopy) {
       return NextResponse.json(
@@ -64,6 +84,9 @@ export async function POST(
     }
 
     // Verify ad exists and belongs to organization
+    console.log('Querying for ad with ID:', adId);
+    console.log('Organization filter:', organizationId);
+
     const ad = await db
       .select()
       .from(ads)
@@ -75,12 +98,46 @@ export async function POST(
       )
       .limit(1);
 
+    console.log('Ad found in database:', ad.length > 0);
+
     if (ad.length === 0) {
+      console.log('ERROR: Ad not found with tenant filter!');
+      console.log('Trying to find ANY ad with this ID regardless of org...');
+
+      // Try to find the ad without org filter to diagnose the issue
+      const anyAd = await db
+        .select()
+        .from(ads)
+        .where(eq(ads.id, adId))
+        .limit(1);
+
+      console.log('Ad exists in DB but wrong org?:', anyAd.length > 0);
+
+      if (anyAd.length > 0) {
+        console.log('Ad organization ID:', anyAd[0].organizationId);
+        console.log('Expected organization ID:', organizationId);
+        console.log('MISMATCH! This is a tenant isolation issue.');
+        console.log('Ad details:', {
+          id: anyAd[0].id,
+          type: anyAd[0].adType,
+          organizationId: anyAd[0].organizationId,
+          createdAt: anyAd[0].createdAt
+        });
+      } else {
+        console.log('Ad does not exist in database at all!');
+        console.log('This might be an ID format or timing issue.');
+      }
+
+      console.log('===========================');
+
       return NextResponse.json(
         { success: false, error: 'Ad not found' },
         { status: 404 }
       );
     }
+
+    console.log('✓ Ad found and belongs to organization');
+    console.log('===========================');
 
     // Fetch all avatars for this set
     const avatarRecords = await db
