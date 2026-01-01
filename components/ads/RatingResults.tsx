@@ -159,26 +159,44 @@ export default function RatingResults({ summary, feedbacks, onClose, adId, origi
   const negativeFeedbacks = feedbacks.filter(f => f.sentiment === 'negative');
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-            🎯 Avatar Rating Results
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Feedback from {summary.totalAvatars} customer personas
-          </p>
-        </div>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/50 z-50"
+        onClick={onClose}
+      />
+
+      {/* Modal Container - Centered, Scrollable */}
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4">
+
+          {/* Modal Content */}
+          <div
+            className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header - Sticky at top */}
+            <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                  🎯 Avatar Rating Results
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Feedback from {summary.totalAvatars} customer personas
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="px-6 py-6">
 
       {/* Summary Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
@@ -601,6 +619,11 @@ export default function RatingResults({ summary, feedbacks, onClose, adId, origi
           Powered by Gemini 2.0 Flash
         </p>
       </div>
-    </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
