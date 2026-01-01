@@ -87,6 +87,8 @@ export default function MetaAdCreatePage() {
   const [ratingResults, setRatingResults] = useState<RatingResults | null>(null);
   const [showRatingResults, setShowRatingResults] = useState(false);
   const [ratingVariationIndex, setRatingVariationIndex] = useState<number | null>(null);
+  const [ratedAdId, setRatedAdId] = useState<string>('');
+  const [ratedAdCopy, setRatedAdCopy] = useState<string>('');
 
   useEffect(() => {
     // Fetch available prompts for Meta Ads
@@ -268,6 +270,10 @@ export default function MetaAdCreatePage() {
     setRatingVariationIndex(variationIndex);
     setShowRatingResults(false);
     setRatingProgress({ completed: 0, total: 13, avatars: [] });
+
+    // Capture the ad ID and copy for synthesis
+    setRatedAdId(realAdId);
+    setRatedAdCopy(adCopy);
 
     try {
       // Note: We're not implementing real-time progress updates in this version
@@ -658,6 +664,8 @@ export default function MetaAdCreatePage() {
                 summary={ratingResults.summary}
                 feedbacks={ratingResults.feedbacks}
                 onClose={() => setShowRatingResults(false)}
+                adId={ratedAdId}
+                originalAdCopy={ratedAdCopy}
               />
             </div>
           </div>

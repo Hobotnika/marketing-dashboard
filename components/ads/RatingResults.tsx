@@ -27,10 +27,14 @@ interface RatingResultsProps {
   summary: RatingSummary;
   feedbacks: AvatarFeedback[];
   onClose: () => void;
+  adId: string;
+  originalAdCopy: string;
 }
 
-export default function RatingResults({ summary, feedbacks, onClose }: RatingResultsProps) {
+export default function RatingResults({ summary, feedbacks, onClose, adId, originalAdCopy }: RatingResultsProps) {
   const [expandedAvatars, setExpandedAvatars] = useState<Set<string>>(new Set());
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [synthesisResults, setSynthesisResults] = useState<any>(null);
 
   const toggleAvatar = (avatarName: string) => {
     const newExpanded = new Set(expandedAvatars);
@@ -40,6 +44,36 @@ export default function RatingResults({ summary, feedbacks, onClose }: RatingRes
       newExpanded.add(avatarName);
     }
     setExpandedAvatars(newExpanded);
+  };
+
+  const handleSynthesize = async () => {
+    setIsSynthesizing(true);
+    try {
+      const response = await fetch(`/api/ads/${adId}/synthesize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feedbacks: feedbacks.map(f => ({
+            avatarName: f.avatarName,
+            feedback: f.feedback,
+            sentiment: f.sentiment
+          })),
+          originalAdCopy: originalAdCopy
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Synthesis failed');
+      }
+
+      const data = await response.json();
+      setSynthesisResults(data.data);
+    } catch (error) {
+      console.error('[Synthesis] Error:', error);
+      alert('Failed to synthesize optimized versions. Please try again.');
+    } finally {
+      setIsSynthesizing(false);
+    }
   };
 
   const getSentimentEmoji = (sentiment: string) => {
@@ -285,6 +319,112 @@ export default function RatingResults({ summary, feedbacks, onClose }: RatingRes
           </div>
         )}
       </div>
+
+      {/* AI Copywriter Synthesis Button */}
+      {!synthesisResults && (
+        <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="text-center">
+            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Want to improve this ad based on avatar feedback?
+            </h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Our AI copywriter will analyze all {feedbacks.length} avatar responses and create 3 optimized versions
+            </p>
+            <button
+              onClick={handleSynthesize}
+              disabled={isSynthesizing}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {isSynthesizing ? (
+                <>
+                  <span className="inline-block animate-spin mr-2">⚙️</span>
+                  Synthesizing with Claude...
+                </>
+              ) : (
+                <>🤖 Generate Optimized Versions</>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Synthesis Results Display */}
+      {synthesisResults && (
+        <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg p-6 mb-6">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              🤖 AI Copywriter Synthesis
+            </h3>
+
+            {/* Internal Memo */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6">
+              <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                📝 Internal Team Memo
+              </h4>
+              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                {synthesisResults.internalMemo}
+              </p>
+            </div>
+
+            {/* Key Insights */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6">
+              <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                💡 Key Insights from Avatar Feedback
+              </h4>
+              <ul className="space-y-2">
+                {synthesisResults.keyInsights?.map((insight: string, i: number) => (
+                  <li key={i} className="text-sm text-gray-700 dark:text-gray-300 flex items-start gap-2">
+                    <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                    <span>{insight}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Optimized Versions */}
+            <div className="space-y-6">
+              <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                ✨ 3 Optimized Ad Versions
+              </h4>
+
+              {synthesisResults.optimizedVersions?.map((version: any, i: number) => (
+                <div key={i} className="bg-white dark:bg-gray-800 rounded-lg p-5 border-l-4 border-purple-500">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide">
+                        Version {version.versionNumber}
+                      </span>
+                      <h5 className="text-lg font-bold text-gray-900 dark:text-white mt-1">
+                        {version.headline}
+                      </h5>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        Strategy: {version.strategyFocus}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${version.headline}\n\n${version.bodyCopy}`);
+                        alert('✅ Copied to clipboard!');
+                      }}
+                      className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium"
+                    >
+                      📋 Copy
+                    </button>
+                  </div>
+
+                  <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                    {version.bodyCopy}
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
+                    {version.bodyCopy.split(' ').length} words
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
