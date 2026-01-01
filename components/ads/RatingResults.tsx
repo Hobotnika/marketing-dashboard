@@ -35,6 +35,8 @@ export default function RatingResults({ summary, feedbacks, onClose, adId, origi
   const [expandedAvatars, setExpandedAvatars] = useState<Set<string>>(new Set());
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [synthesisResults, setSynthesisResults] = useState<any>(null);
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [predictionResults, setPredictionResults] = useState<any>(null);
 
   const toggleAvatar = (avatarName: string) => {
     const newExpanded = new Set(expandedAvatars);
@@ -73,6 +75,47 @@ export default function RatingResults({ summary, feedbacks, onClose, adId, origi
       alert('Failed to synthesize optimized versions. Please try again.');
     } finally {
       setIsSynthesizing(false);
+    }
+  };
+
+  const handlePredict = async () => {
+    if (!synthesisResults) {
+      alert('Please run copywriter synthesis first');
+      return;
+    }
+
+    setIsPredicting(true);
+
+    try {
+      const response = await fetch(`/api/ads/${adId}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feedbacks: feedbacks.map(f => ({
+            avatarName: f.avatarName,
+            feedback: f.feedback,
+            sentiment: f.sentiment
+          })),
+          optimizedVersions: synthesisResults.optimizedVersions
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Prediction failed');
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setPredictionResults(data.data);
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      console.error('[Prediction] Error:', error);
+      alert('Failed to predict winning version. Please try again.');
+    } finally {
+      setIsPredicting(false);
     }
   };
 
@@ -422,6 +465,129 @@ export default function RatingResults({ summary, feedbacks, onClose, adId, origi
                 </div>
               ))}
             </div>
+
+            {/* Prediction Engine Button */}
+            {!predictionResults && (
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+                <button
+                  onClick={handlePredict}
+                  disabled={isPredicting}
+                  className="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                >
+                  {isPredicting ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      <span>AI Analyst Scoring Versions...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🎯</span>
+                      <span>Score & Pick Winner (Prediction Engine)</span>
+                    </>
+                  )}
+                </button>
+
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-2 text-center">
+                  AI will score each version 0-100% and predict the winner
+                </p>
+              </div>
+            )}
+
+            {/* Prediction Results */}
+            {predictionResults && (
+              <div className="mt-8 space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span>🎯</span>
+                  <span>Prediction Engine Results</span>
+                </h3>
+
+                {/* Version Scores */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {predictionResults.scores?.map((score: any) => (
+                    <div
+                      key={score.versionNumber}
+                      className={`border rounded-lg p-6 ${
+                        score.versionNumber === predictionResults.winner?.versionNumber
+                          ? 'border-green-500 bg-green-900/20 dark:bg-green-900/30'
+                          : 'border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                          Version {score.versionNumber}
+                        </span>
+                        {score.versionNumber === predictionResults.winner?.versionNumber && (
+                          <span className="px-2 py-1 bg-green-600 text-white rounded text-xs font-bold">
+                            👑 WINNER
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mb-3">
+                        <div className="text-4xl font-bold text-gray-900 dark:text-white mb-1">
+                          {score.score}%
+                        </div>
+                        <div className={`text-sm font-medium ${
+                          score.score >= 70 ? 'text-green-600 dark:text-green-400' :
+                          score.score >= 50 ? 'text-blue-600 dark:text-blue-400' :
+                          score.score >= 30 ? 'text-yellow-600 dark:text-yellow-400' :
+                          'text-red-600 dark:text-red-400'
+                        }`}>
+                          {score.category}
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {score.briefReason}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Winning Version */}
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 border-2 border-green-500 rounded-lg p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-2xl">👑</span>
+                    <h4 className="text-xl font-bold text-green-700 dark:text-green-400">
+                      Winning Ad - Version {predictionResults.winner?.versionNumber} ({predictionResults.winner?.score}%)
+                    </h4>
+                  </div>
+
+                  <div className="bg-white dark:bg-black/30 border border-green-400 dark:border-green-700 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-green-800 dark:text-green-300">
+                      <strong>Why it wins:</strong> {predictionResults.winner?.whyItWins}
+                    </p>
+                  </div>
+
+                  <div className="mb-4">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 uppercase mb-2">Winning Headline:</p>
+                    <p className="font-bold text-xl text-gray-900 dark:text-white mb-4">
+                      {predictionResults.winner?.headline}
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 uppercase">Winning Ad Copy:</p>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            `${predictionResults.winner?.headline}\n\n${predictionResults.winner?.bodyCopy}`
+                          );
+                          alert('✅ Copied winning ad to clipboard!');
+                        }}
+                        className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-semibold"
+                      >
+                        📋 Copy to Clipboard
+                      </button>
+                    </div>
+                    <div className="bg-white dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700 rounded p-4 whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-300 leading-relaxed max-h-96 overflow-y-auto">
+                      {predictionResults.winner?.bodyCopy}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
