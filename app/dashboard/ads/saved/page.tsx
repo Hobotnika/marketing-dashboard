@@ -2,8 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import GoogleAdPreview from '@/components/ads/GoogleAdPreview';
-import { exportGoogleAdsToCsv, formatGoogleAdsForCopy, downloadCsv } from '@/lib/utils/google-ads-export';
+import AdGroupCard from '@/components/ads/AdGroupCard';
+import AdViewModal from '@/components/ads/AdViewModal';
+import RatingSetupModal from '@/components/ads/RatingSetupModal';
+import DateRangePicker from '@/components/ads/DateRangePicker';
+import RatingProgressModal from '@/components/ads/RatingProgressModal';
+import RatingResults from '@/components/ads/RatingResults';
 
 interface Ad {
   id: string;
@@ -30,31 +34,71 @@ interface Ad {
   } | null;
 }
 
-const FORMULA_COLORS: Record<string, string> = {
-  'PASTOR': 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700',
-  'Story-Bridge': 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700',
-  'Social Proof': 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-300 dark:border-green-700',
-};
+interface AdGroup {
+  landingPage: string | null;
+  adType: 'meta' | 'google';
+  variations: Ad[];
+}
 
-const STATUS_COLORS: Record<string, string> = {
-  'draft': 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600',
-  'active': 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-300 dark:border-green-700',
-  'paused': 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
-  'archived': 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-300 dark:border-red-700',
-};
+interface AvatarStatus {
+  name: string;
+  status: 'pending' | 'processing' | 'completed';
+}
+
+interface RatingResultsData {
+  summary: {
+    totalAvatars: number;
+    positive: number;
+    mixed: number;
+    negative: number;
+    processingTimeMs: number;
+  };
+  feedbacks: Array<{
+    avatarName: string;
+    feedback: string;
+    sentiment: 'positive' | 'mixed' | 'negative';
+    processing_time: number;
+    demographics: {
+      age: number;
+      gender: string;
+      location: string;
+      income: string;
+    };
+  }>;
+}
 
 export default function SavedAdsPage() {
   const router = useRouter();
   const [ads, setAds] = useState<Ad[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [expandedAd, setExpandedAd] = useState<string | null>(null);
-  const [previewAdId, setPreviewAdId] = useState<string | null>(null);
 
   // Filters
   const [platformFilter, setPlatformFilter] = useState<string>('');
   const [formulaFilter, setFormulaFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: null,
+    end: null,
+  });
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'status'>('newest');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  // Modals
+  const [viewModalVariations, setViewModalVariations] = useState<Ad[] | null>(null);
+  const [ratingSetupAd, setRatingSetupAd] = useState<Ad | null>(null);
+  const [isRatingInProgress, setIsRatingInProgress] = useState(false);
+  const [ratingProgress, setRatingProgress] = useState<{
+    completed: number;
+    total: number;
+    avatars: AvatarStatus[];
+  }>({ completed: 0, total: 0, avatars: [] });
+  const [ratingResults, setRatingResults] = useState<RatingResultsData | null>(null);
+  const [ratedAdId, setRatedAdId] = useState<string>('');
+  const [ratedAdCopy, setRatedAdCopy] = useState<string>('');
 
   const fetchAds = async () => {
     setIsLoading(true);
@@ -80,11 +124,65 @@ export default function SavedAdsPage() {
 
   useEffect(() => {
     fetchAds();
+    // Reset to page 1 when filters change
+    setCurrentPage(1);
   }, [platformFilter, formulaFilter, statusFilter, searchQuery]);
 
-  const handleDelete = async (adId: string) => {
-    if (!confirm('Are you sure you want to delete this ad?')) return;
+  // Grouping logic
+  const groupAdsByCampaign = (ads: Ad[]): AdGroup[] => {
+    const groups = new Map<string, Ad[]>();
 
+    ads.forEach(ad => {
+      const key = `${ad.landing_page || 'no-landing-page'}_${ad.ad_type}`;
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(ad);
+    });
+
+    return Array.from(groups.values()).map(variations => ({
+      landingPage: variations[0].landing_page,
+      adType: variations[0].ad_type,
+      variations: variations.sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      ),
+    }));
+  };
+
+  // Apply date filtering
+  const dateFilteredAds = ads.filter(ad => {
+    const adDate = new Date(ad.createdAt);
+    if (dateRange.start && adDate < dateRange.start) return false;
+    if (dateRange.end && adDate > dateRange.end) return false;
+    return true;
+  });
+
+  // Apply sorting
+  const sortedAds = [...dateFilteredAds].sort((a, b) => {
+    switch (sortBy) {
+      case 'newest':
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      case 'oldest':
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      case 'status':
+        const statusOrder = { active: 0, draft: 1, paused: 2, archived: 3 };
+        return statusOrder[a.status] - statusOrder[b.status];
+      default:
+        return 0;
+    }
+  });
+
+  // Group ads
+  const groupedCampaigns = groupAdsByCampaign(sortedAds);
+
+  // Pagination
+  const totalPages = Math.ceil(groupedCampaigns.length / itemsPerPage);
+  const paginatedCampaigns = groupedCampaigns.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handleDelete = async (adId: string) => {
     try {
       const response = await fetch(`/api/ads/${adId}`, {
         method: 'DELETE',
@@ -98,31 +196,57 @@ export default function SavedAdsPage() {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const handleDuplicate = (ad: Ad) => {
+    const createUrl = ad.ad_type === 'meta'
+      ? '/dashboard/ads/create/meta'
+      : '/dashboard/ads/create/google';
+
+    router.push(`${createUrl}?duplicate=${ad.id}`);
   };
 
-  const handleExportGoogleAd = (ad: Ad) => {
-    if (!ad.platform_config) return;
+  const handleStartRating = async (ad: Ad, avatarSetName: string) => {
+    setIsRatingInProgress(true);
+    setRatingSetupAd(null); // Close setup modal
+    setRatedAdId(ad.id);
+    setRatedAdCopy(ad.body_text);
 
     try {
-      const config = JSON.parse(ad.platform_config);
-      const csvContent = exportGoogleAdsToCsv(config, ad.headline);
-      downloadCsv(csvContent, `google-ad-${ad.id}.csv`);
-    } catch (error) {
-      console.error('Error exporting Google Ad:', error);
-    }
-  };
+      // Fetch avatars for the set
+      const avatarsRes = await fetch(`/api/avatars/sets/${encodeURIComponent(avatarSetName)}`);
+      const avatarsData = await avatarsRes.json();
 
-  const handleCopyGoogleAd = (ad: Ad) => {
-    if (!ad.platform_config) return;
+      if (!avatarsData.success) {
+        throw new Error('Failed to fetch avatars');
+      }
 
-    try {
-      const config = JSON.parse(ad.platform_config);
-      const formattedText = formatGoogleAdsForCopy(config);
-      copyToClipboard(formattedText);
+      const avatars = avatarsData.data;
+
+      // Initialize progress
+      setRatingProgress({
+        completed: 0,
+        total: avatars.length,
+        avatars: avatars.map((a: any) => ({ name: a.avatarName, status: 'pending' as const }))
+      });
+
+      // Call rating API
+      const response = await fetch(`/api/ads/${ad.id}/rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarSetName })
+      });
+
+      if (!response.ok) {
+        throw new Error('Rating failed');
+      }
+
+      const result = await response.json();
+      setRatingResults(result.data);
+
     } catch (error) {
-      console.error('Error copying Google Ad:', error);
+      console.error('Rating error:', error);
+      alert('Failed to rate ad. Please try again.');
+    } finally {
+      setIsRatingInProgress(false);
     }
   };
 
@@ -140,10 +264,10 @@ export default function SavedAdsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Saved Ads
+                Saved Ads Library
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
-                Manage your AI-generated ad variations
+                Manage your AI-generated ad campaigns
               </p>
             </div>
             <button
@@ -160,7 +284,7 @@ export default function SavedAdsPage() {
 
         {/* Filters */}
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 border border-gray-200 dark:border-zinc-800 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             {/* Search */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -191,7 +315,7 @@ export default function SavedAdsPage() {
               </select>
             </div>
 
-            {/* Formula Filter - only show for Meta ads */}
+            {/* Formula Filter */}
             {platformFilter !== 'google' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -227,16 +351,41 @@ export default function SavedAdsPage() {
                 <option value="archived">Archived</option>
               </select>
             </div>
+
+            {/* Sort */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Sort By
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-zinc-800 dark:text-white"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="status">By Status</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Date Range Filter */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Date Range
+            </label>
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
           </div>
 
           {/* Clear Filters */}
-          {(platformFilter || formulaFilter || statusFilter || searchQuery) && (
+          {(platformFilter || formulaFilter || statusFilter || searchQuery || dateRange.start) && (
             <button
               onClick={() => {
                 setPlatformFilter('');
                 setFormulaFilter('');
                 setStatusFilter('');
                 setSearchQuery('');
+                setDateRange({ start: null, end: null });
               }}
               className="mt-4 text-sm text-blue-600 dark:text-blue-400 hover:underline"
             >
@@ -246,13 +395,16 @@ export default function SavedAdsPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 border border-gray-200 dark:border-zinc-800">
             <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-              Total Saved Ads
+              Total Campaigns
             </h3>
             <p className="text-3xl font-bold text-gray-900 dark:text-white">
-              {ads.length}
+              {groupedCampaigns.length}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {ads.length} total ads
             </p>
           </div>
 
@@ -273,314 +425,138 @@ export default function SavedAdsPage() {
               {ads.filter(ad => ad.status === 'active').length}
             </p>
           </div>
+
+          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 border border-gray-200 dark:border-zinc-800">
+            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+              Page
+            </h3>
+            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+              {currentPage} of {totalPages || 1}
+            </p>
+          </div>
         </div>
 
-        {/* Ads List */}
+        {/* Ads Grid */}
         {isLoading ? (
           <div className="p-12 text-center bg-white dark:bg-zinc-900 rounded-lg shadow">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-blue-600"></div>
-            <p className="mt-4 text-gray-600 dark:text-gray-400">Loading saved ads...</p>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">Loading campaigns...</p>
           </div>
-        ) : ads.length === 0 ? (
+        ) : groupedCampaigns.length === 0 ? (
           <div className="p-12 text-center bg-white dark:bg-zinc-900 rounded-lg shadow border border-gray-200 dark:border-zinc-800">
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              No saved ads yet. Create your first AI-generated ad!
+              No campaigns found. {(platformFilter || formulaFilter || statusFilter || searchQuery || dateRange.start) ? 'Try adjusting your filters.' : 'Create your first AI-generated ad!'}
             </p>
-            <button
-              onClick={() => router.push('/dashboard/ads/create/meta')}
-              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium inline-flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Create Meta Ad
-            </button>
+            {!platformFilter && !formulaFilter && !statusFilter && !searchQuery && !dateRange.start && (
+              <button
+                onClick={() => router.push('/dashboard/ads/create/meta')}
+                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium inline-flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Create Meta Ad
+              </button>
+            )}
           </div>
         ) : (
-          <div className="space-y-4">
-            {ads.map((ad) => {
-              // Parse platform config for Google Ads
-              const platformConfig = ad.platform_config ? JSON.parse(ad.platform_config) : null;
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              {paginatedCampaigns.map((campaign, index) => (
+                <AdGroupCard
+                  key={`${campaign.landingPage}_${campaign.adType}_${index}`}
+                  landingPage={campaign.landingPage}
+                  adType={campaign.adType}
+                  variations={campaign.variations}
+                  onView={(vars) => setViewModalVariations(vars)}
+                  onDelete={handleDelete}
+                  onDuplicate={handleDuplicate}
+                  onReRate={(ad) => setRatingSetupAd(ad)}
+                />
+              ))}
+            </div>
 
-              return (
-                <div
-                  key={ad.id}
-                  className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 border border-gray-200 dark:border-zinc-800"
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-4">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  className="px-4 py-2 border border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {/* Platform Badge */}
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                        ad.ad_type === 'google'
-                          ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-300 dark:border-green-700'
-                          : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700'
-                      }`}>
-                        {ad.ad_type === 'google' ? '📱 Google Ads' : '📘 Meta Ads'}
-                      </span>
+                  Previous
+                </button>
 
-                      {/* Formula Badge (Meta only) */}
-                      {ad.ad_type === 'meta' && ad.ai_prompt && (
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${FORMULA_COLORS[ad.ai_prompt] || 'bg-gray-100 text-gray-800 border-gray-300'}`}>
-                          {ad.ai_prompt}
-                        </span>
-                      )}
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Page {currentPage} of {totalPages} ({groupedCampaigns.length} campaigns)
+                </span>
 
-                      {/* Status Badge */}
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${STATUS_COLORS[ad.status]}`}>
-                        {ad.status.charAt(0).toUpperCase() + ad.status.slice(1)}
-                      </span>
-
-                      {/* Word Count (Meta only) */}
-                      {ad.ad_type === 'meta' && ad.word_count && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {ad.word_count} words
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {new Date(ad.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-
-                  {/* Landing Page */}
-                  {ad.landing_page && (
-                    <div className="mb-3">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Landing Page: </span>
-                      <a
-                        href={ad.landing_page}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                      >
-                        {ad.landing_page}
-                      </a>
-                    </div>
-                  )}
-
-                  {/* Google Ads Campaign Summary */}
-                  {ad.ad_type === 'google' && platformConfig ? (
-                    <div className="mb-4 space-y-3">
-                      <div className="flex items-center gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">Quality: </span>
-                          <span className="font-semibold text-green-600 dark:text-green-400">
-                            {platformConfig.quality_score_prediction?.predicted_score || 'N/A'} ⭐
-                          </span>
-                        </div>
-                        <div className="h-4 w-px bg-gray-300 dark:bg-gray-700" />
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">Extensions: </span>
-                          <span className="font-semibold text-blue-600 dark:text-blue-400">
-                            {[platformConfig.sitelinks?.length > 0, platformConfig.callouts?.length > 0, platformConfig.structured_snippets?.length > 0].filter(Boolean).length} types
-                          </span>
-                        </div>
-                        {platformConfig.target_keywords && (
-                          <>
-                            <div className="h-4 w-px bg-gray-300 dark:bg-gray-700" />
-                            <div>
-                              <span className="text-gray-600 dark:text-gray-400">Keywords: </span>
-                              <span className="font-semibold text-purple-600 dark:text-purple-400">
-                                {platformConfig.target_keywords.primary} 🎯
-                              </span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-                        <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded">
-                          <div className="font-semibold text-purple-900 dark:text-purple-100">
-                            {(platformConfig.headlines?.price_focused?.length || 0) +
-                             (platformConfig.headlines?.social_proof?.length || 0) +
-                             (platformConfig.headlines?.authority?.length || 0)} Headlines
-                          </div>
-                          <div className="text-purple-700 dark:text-purple-300">3 themes</div>
-                        </div>
-                        <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
-                          <div className="font-semibold text-blue-900 dark:text-blue-100">
-                            {platformConfig.descriptions?.length || 0} Descriptions
-                          </div>
-                        </div>
-                        <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded">
-                          <div className="font-semibold text-green-900 dark:text-green-100">
-                            {platformConfig.sitelinks?.length || 0} Sitelinks
-                          </div>
-                        </div>
-                        <div className="bg-orange-50 dark:bg-orange-900/20 p-2 rounded">
-                          <div className="font-semibold text-orange-900 dark:text-orange-100">
-                            {platformConfig.callouts?.length || 0} Callouts
-                          </div>
-                        </div>
-                        <div className="bg-pink-50 dark:bg-pink-900/20 p-2 rounded">
-                          <div className="font-semibold text-pink-900 dark:text-pink-100">
-                            {platformConfig.structured_snippets?.length || 0} Snippets
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Preview Modal */}
-                      {previewAdId === ad.id && (
-                        <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <div className="flex justify-between items-center mb-4">
-                            <h4 className="font-semibold text-gray-900 dark:text-white">Ad Preview</h4>
-                            <button
-                              onClick={() => setPreviewAdId(null)}
-                              className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                          <GoogleAdPreview
-                            headlines={platformConfig.headlines}
-                            descriptions={platformConfig.descriptions}
-                            sitelinks={platformConfig.sitelinks || []}
-                            callouts={platformConfig.callouts || []}
-                            structuredSnippets={platformConfig.structured_snippets || []}
-                            landingPageUrl={ad.landing_page || ''}
-                            qualityScore={platformConfig.quality_score_prediction?.predicted_score}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    /* Meta Ads Display */
-                    <>
-                      {/* Hook Preview */}
-                      <div className="mb-4">
-                        <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Hook
-                        </h3>
-                        <p className="text-gray-900 dark:text-white font-medium">
-                          {ad.headline}
-                        </p>
-                      </div>
-
-                      {/* Expandable Full Copy */}
-                      {expandedAd === ad.id ? (
-                        <div className="mb-4">
-                          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                            Full Copy
-                          </h3>
-                          <div className="prose dark:prose-invert max-w-none">
-                            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-sm">
-                              {ad.body_text}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => setExpandedAd(null)}
-                            className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                          >
-                            Show less
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="mb-4">
-                          <p className="text-gray-700 dark:text-gray-300 text-sm line-clamp-2">
-                            {ad.body_text}
-                          </p>
-                          <button
-                            onClick={() => setExpandedAd(ad.id)}
-                            className="mt-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                          >
-                            Show full copy
-                          </button>
-                        </div>
-                      )}
-
-                      {/* CTA */}
-                      <div className="mb-4">
-                        <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Call to Action
-                        </h3>
-                        <p className="text-gray-900 dark:text-white font-medium text-sm">
-                          {ad.call_to_action}
-                        </p>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Actions */}
-                  <div className="pt-4 border-t border-gray-200 dark:border-zinc-800 flex gap-3 flex-wrap">
-                    {ad.ad_type === 'google' ? (
-                      /* Google Ads Actions */
-                      <>
-                        <button
-                          onClick={() => setPreviewAdId(previewAdId === ad.id ? null : ad.id)}
-                          className="flex-1 px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          {previewAdId === ad.id ? 'Hide Preview' : 'Preview'}
-                        </button>
-                        <button
-                          onClick={() => handleCopyGoogleAd(ad)}
-                          className="flex-1 px-4 py-2 bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          Copy All
-                        </button>
-                        <button
-                          onClick={() => handleExportGoogleAd(ad)}
-                          className="flex-1 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          Export CSV
-                        </button>
-                        <button
-                          onClick={() => handleDelete(ad.id)}
-                          className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          Delete
-                        </button>
-                      </>
-                    ) : (
-                      /* Meta Ads Actions */
-                      <>
-                        <button
-                          onClick={() => copyToClipboard(ad.body_text)}
-                          className="flex-1 px-4 py-2 bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          Copy
-                        </button>
-                        <button
-                          onClick={() => copyToClipboard(`Hook: ${ad.headline}\n\n${ad.body_text}\n\nCTA: ${ad.call_to_action}`)}
-                          className="flex-1 px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          Copy All
-                        </button>
-                        <button
-                          onClick={() => handleDelete(ad.id)}
-                          className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  className="px-4 py-2 border border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
+
+      {/* Modals */}
+      {viewModalVariations && (
+        <AdViewModal
+          isOpen={!!viewModalVariations}
+          onClose={() => setViewModalVariations(null)}
+          variations={viewModalVariations}
+          onDuplicate={handleDuplicate}
+          onReRate={(ad) => {
+            setViewModalVariations(null);
+            setRatingSetupAd(ad);
+          }}
+          onDelete={async (id) => {
+            await handleDelete(id);
+            // Refresh the view modal if there are still variations
+            const remaining = viewModalVariations.filter(v => v.id !== id);
+            if (remaining.length > 0) {
+              setViewModalVariations(remaining);
+            } else {
+              setViewModalVariations(null);
+            }
+            fetchAds();
+          }}
+        />
+      )}
+
+      {ratingSetupAd && (
+        <RatingSetupModal
+          isOpen={!!ratingSetupAd}
+          onClose={() => setRatingSetupAd(null)}
+          adId={ratingSetupAd.id}
+          adCopy={ratingSetupAd.body_text}
+          onRatingStart={(setName) => handleStartRating(ratingSetupAd, setName)}
+        />
+      )}
+
+      {isRatingInProgress && (
+        <RatingProgressModal
+          isOpen={isRatingInProgress}
+          completed={ratingProgress.completed}
+          total={ratingProgress.total}
+          avatars={ratingProgress.avatars}
+        />
+      )}
+
+      {ratingResults && (
+        <RatingResults
+          summary={ratingResults.summary}
+          feedbacks={ratingResults.feedbacks}
+          adId={ratedAdId}
+          originalAdCopy={ratedAdCopy}
+          onClose={() => setRatingResults(null)}
+        />
+      )}
     </div>
   );
 }

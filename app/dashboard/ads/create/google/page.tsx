@@ -114,6 +114,44 @@ export default function GoogleAdCreatePage() {
         }
       })
       .catch(err => console.error('Failed to load prompts:', err));
+
+    // Check for duplication parameter
+    const params = new URLSearchParams(window.location.search);
+    const duplicateId = params.get('duplicate');
+
+    if (duplicateId) {
+      fetch(`/api/ads/${duplicateId}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.data.ad_type === 'google') {
+            const ad = data.data;
+            setLandingPage(ad.landing_page || '');
+
+            // Try to extract keywords from platform_config if available
+            if (ad.platform_config) {
+              try {
+                const config = JSON.parse(ad.platform_config);
+                if (config.target_keywords?.primary) {
+                  setPrimaryKeyword(config.target_keywords.primary);
+                }
+                if (config.target_keywords?.secondary && Array.isArray(config.target_keywords.secondary)) {
+                  setSecondaryKeywords(config.target_keywords.secondary.slice(0, 5));
+                }
+                if (config.target_keywords?.match_type) {
+                  setMatchType(config.target_keywords.match_type);
+                }
+              } catch (e) {
+                console.error('Failed to parse platform config:', e);
+              }
+            }
+
+            // Show notification
+            const createdDate = new Date(ad.createdAt).toLocaleDateString();
+            alert(`📋 Duplicating Google Ad from ${createdDate}\n\nLanding page and keywords (if available) have been pre-filled. Click "Generate Ad" to create new variations.`);
+          }
+        })
+        .catch(err => console.error('Failed to load ad for duplication:', err));
+    }
   }, []);
 
   const handleAddKeyword = () => {

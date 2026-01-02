@@ -110,6 +110,25 @@ export default function MetaAdCreatePage() {
         }
       })
       .catch(err => console.error('Failed to load avatar sets:', err));
+
+    // Check for duplication parameter
+    const params = new URLSearchParams(window.location.search);
+    const duplicateId = params.get('duplicate');
+
+    if (duplicateId) {
+      fetch(`/api/ads/${duplicateId}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.data.ad_type === 'meta') {
+            const ad = data.data;
+            setLandingPage(ad.landing_page || '');
+            // Show notification
+            const createdDate = new Date(ad.createdAt).toLocaleDateString();
+            alert(`📋 Duplicating Meta Ad from ${createdDate}\n\nLanding page has been pre-filled. Click "Generate Variations" to create new ad copy.`);
+          }
+        })
+        .catch(err => console.error('Failed to load ad for duplication:', err));
+    }
   }, []);
 
   const handleGenerate = async () => {
