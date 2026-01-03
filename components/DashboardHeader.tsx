@@ -167,6 +167,28 @@ export default function DashboardHeader({
             Avatars
           </Link>
 
+          {/* Business KPIs Link */}
+          <Link
+            href="/dashboard/business/kpis"
+            className="px-4 py-2 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:from-blue-200 hover:to-purple-200 dark:hover:from-blue-900/50 dark:hover:to-purple-900/50 transition-colors flex items-center gap-2 shadow-md hover:shadow-lg border border-blue-300 dark:border-blue-700"
+            title="Track business KPIs and sales funnel"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              />
+            </svg>
+            Business KPIs
+          </Link>
+
           {/* Alert Settings Link */}
           <Link
             href="/settings/alerts"
