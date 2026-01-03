@@ -448,40 +448,102 @@ export default function RatingResults({ summary, feedbacks, onClose, adId, origi
                 ✨ 3 Optimized Ad Versions
               </h4>
 
-              {synthesisResults.optimizedVersions?.map((version: any, i: number) => (
-                <div key={i} className="bg-white dark:bg-gray-800 rounded-lg p-5 border-l-4 border-purple-500">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide">
-                        Version {version.versionNumber}
-                      </span>
-                      <h5 className="text-lg font-bold text-gray-900 dark:text-white mt-1">
-                        {version.headline}
-                      </h5>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Strategy: {version.strategyFocus}
-                      </p>
+              {synthesisResults.optimizedVersions?.map((version: any, i: number) => {
+                // Detect ad type by checking if version has headlines array (Google) or headline string (Meta)
+                const isGoogleAd = Array.isArray(version.headlines);
+
+                return (
+                  <div key={i} className="bg-white dark:bg-gray-800 rounded-lg p-5 border-l-4 border-purple-500">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide">
+                          Version {version.versionNumber}
+                        </span>
+                        <h5 className="text-lg font-bold text-gray-900 dark:text-white mt-1">
+                          {isGoogleAd ? `Google Search Ad - ${version.strategyFocus}` : version.headline}
+                        </h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Strategy: {version.strategyFocus}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (isGoogleAd) {
+                            const copyText = `Headlines:\n${version.headlines.join('\n')}\n\nDescriptions:\n${version.descriptions.join('\n')}`;
+                            navigator.clipboard.writeText(copyText);
+                          } else {
+                            navigator.clipboard.writeText(`${version.headline}\n\n${version.bodyCopy}`);
+                          }
+                          alert('✅ Copied to clipboard!');
+                        }}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium flex-shrink-0"
+                      >
+                        📋 Copy
+                      </button>
                     </div>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${version.headline}\n\n${version.bodyCopy}`);
-                        alert('✅ Copied to clipboard!');
-                      }}
-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium"
-                    >
-                      📋 Copy
-                    </button>
-                  </div>
 
-                  <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                    {version.bodyCopy}
-                  </div>
+                    {isGoogleAd ? (
+                      // Google Ads Display
+                      <div className="space-y-4">
+                        {/* Headlines */}
+                        <div>
+                          <h6 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-2">
+                            Headlines (3)
+                          </h6>
+                          <div className="space-y-1">
+                            {version.headlines.map((headline: string, idx: number) => (
+                              <div key={idx} className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/10 rounded">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">H{idx + 1}:</span>
+                                <span className="flex-1 text-sm text-gray-900 dark:text-white">{headline}</span>
+                                <span className={`text-xs font-mono ${
+                                  headline.length > 30 ? 'text-red-600 dark:text-red-400' :
+                                  headline.length > 27 ? 'text-yellow-600 dark:text-yellow-400' :
+                                  'text-green-600 dark:text-green-400'
+                                }`}>
+                                  {headline.length}/30
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
 
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
-                    {version.bodyCopy.split(' ').length} words
+                        {/* Descriptions */}
+                        <div>
+                          <h6 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-2">
+                            Descriptions (2)
+                          </h6>
+                          <div className="space-y-1">
+                            {version.descriptions.map((desc: string, idx: number) => (
+                              <div key={idx} className="flex items-start gap-2 p-2 bg-purple-50 dark:bg-purple-900/10 rounded">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">D{idx + 1}:</span>
+                                <span className="flex-1 text-sm text-gray-900 dark:text-white">{desc}</span>
+                                <span className={`text-xs font-mono flex-shrink-0 ${
+                                  desc.length > 90 ? 'text-red-600 dark:text-red-400' :
+                                  desc.length > 85 ? 'text-yellow-600 dark:text-yellow-400' :
+                                  'text-green-600 dark:text-green-400'
+                                }`}>
+                                  {desc.length}/90
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      // Meta Ads Display (original)
+                      <>
+                        <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                          {version.bodyCopy}
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
+                          {version.bodyCopy.split(' ').length} words
+                        </div>
+                      </>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Prediction Engine Button */}
@@ -577,32 +639,82 @@ export default function RatingResults({ summary, feedbacks, onClose, adId, origi
                     </p>
                   </div>
 
-                  <div className="mb-4">
-                    <p className="text-xs text-gray-600 dark:text-gray-400 uppercase mb-2">Winning Headline:</p>
-                    <p className="font-bold text-xl text-gray-900 dark:text-white mb-4">
-                      {predictionResults.winner?.headline}
-                    </p>
-                  </div>
+                  {Array.isArray(predictionResults.winner?.headlines) ? (
+                    // Google Ads Winner Display
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs text-gray-600 dark:text-gray-400 uppercase">Winning Headlines:</p>
+                          <button
+                            onClick={() => {
+                              const copyText = `Headlines:\n${predictionResults.winner.headlines.join('\n')}\n\nDescriptions:\n${predictionResults.winner.descriptions.join('\n')}`;
+                              navigator.clipboard.writeText(copyText);
+                              alert('✅ Copied winning ad to clipboard!');
+                            }}
+                            className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-semibold"
+                          >
+                            📋 Copy to Clipboard
+                          </button>
+                        </div>
+                        <div className="space-y-2">
+                          {predictionResults.winner.headlines.map((headline: string, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2 p-2 bg-white dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700 rounded">
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">H{idx + 1}:</span>
+                              <span className="flex-1 font-medium text-gray-900 dark:text-white">{headline}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                {headline.length}/30
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs text-gray-600 dark:text-gray-400 uppercase">Winning Ad Copy:</p>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            `${predictionResults.winner?.headline}\n\n${predictionResults.winner?.bodyCopy}`
-                          );
-                          alert('✅ Copied winning ad to clipboard!');
-                        }}
-                        className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-semibold"
-                      >
-                        📋 Copy to Clipboard
-                      </button>
+                      <div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 uppercase mb-2">Winning Descriptions:</p>
+                        <div className="space-y-2">
+                          {predictionResults.winner.descriptions.map((desc: string, idx: number) => (
+                            <div key={idx} className="flex items-start gap-2 p-2 bg-white dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700 rounded">
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">D{idx + 1}:</span>
+                              <span className="flex-1 text-sm text-gray-900 dark:text-white">{desc}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-mono flex-shrink-0">
+                                {desc.length}/90
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-white dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700 rounded p-4 whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-300 leading-relaxed max-h-96 overflow-y-auto">
-                      {predictionResults.winner?.bodyCopy}
-                    </div>
-                  </div>
+                  ) : (
+                    // Meta Ads Winner Display (original)
+                    <>
+                      <div className="mb-4">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 uppercase mb-2">Winning Headline:</p>
+                        <p className="font-bold text-xl text-gray-900 dark:text-white mb-4">
+                          {predictionResults.winner?.headline}
+                        </p>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs text-gray-600 dark:text-gray-400 uppercase">Winning Ad Copy:</p>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(
+                                `${predictionResults.winner?.headline}\n\n${predictionResults.winner?.bodyCopy}`
+                              );
+                              alert('✅ Copied winning ad to clipboard!');
+                            }}
+                            className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-semibold"
+                          >
+                            📋 Copy to Clipboard
+                          </button>
+                        </div>
+                        <div className="bg-white dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700 rounded p-4 whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-300 leading-relaxed max-h-96 overflow-y-auto">
+                          {predictionResults.winner?.bodyCopy}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

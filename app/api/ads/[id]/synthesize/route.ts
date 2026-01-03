@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@/lib/db';
-import { organizations } from '@/lib/db/schema';
+import { organizations, ads } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 const anthropic = new Anthropic({
@@ -44,6 +44,14 @@ export async function POST(
 
     console.log('[Copywriter Synthesis] Feedbacks count:', feedbacks.length);
 
+    // Check if this is a Google Ads campaign
+    const ad = await db.query.ads.findFirst({
+      where: eq(ads.id, adId)
+    });
+
+    const isGoogleAd = ad?.adType === 'google';
+    console.log('[Copywriter Synthesis] Ad type:', ad?.adType);
+
     // Get organization and brand voice
     const organization = await db.query.organizations.findFirst({
       where: eq(organizations.id, organizationId)
@@ -77,8 +85,77 @@ export async function POST(
       `**${f.avatarName}'s Feedback (${f.sentiment}):**\n${f.feedback}`
     ).join('\n\n---\n\n');
 
-    // Build synthesis prompt based on original structure
-    const synthesisPrompt = `You are a world class copywriter. You have 40 years of experience writing direct response copy from direct mail to emails and everything in between.
+    // Build synthesis prompt based on ad type
+    let synthesisPrompt: string;
+
+    if (isGoogleAd) {
+      // Google Ads synthesis prompt
+      synthesisPrompt = `You are a world-class Google Ads copywriter with 40 years of experience writing high-converting search ads.
+
+Your assignment:
+1. I will give you a Google Search Ad campaign we created
+2. I will give you feedback from a panel of prospects about the ad
+3. Consider all feedback and the original ad, then use your vast experience to write 3 NEW optimized Google Search Ad variations
+4. Make sure when you write the ads you use ${brandVoice.brand_name}'s voice, style, and tone but do not overdo it. Tone: ${brandVoice.overall_tone}. Voice traits: ${brandVoice.personality_traits?.join(', ') || 'professional'}. Target audience: ${brandVoice.target_audience || 'general audience'}
+
+CRITICAL GOOGLE ADS REQUIREMENTS:
+- Each headline must be ≤30 characters (HARD LIMIT)
+- Each description must be ≤90 characters (HARD LIMIT)
+- Headlines should be clear, benefit-driven, and include keywords when possible
+- Descriptions should have strong CTAs and value propositions
+
+Format your response like an internal team email quoting key feedback, giving insights, plus 3 re-written ad variations.
+
+Here is the original Google Ads campaign:
+${originalAdCopy}
+
+Here is the customer feedback from ${feedbacks.length} prospects:
+
+${feedbackSections}
+
+---
+
+Return your response as valid JSON (no markdown, no code fences) with this structure:
+{
+  "internalMemo": "Your internal team email with insights and quoted feedback (2-3 paragraphs)",
+  "keyInsights": [
+    "Key insight 1 from the feedback",
+    "Key insight 2 from the feedback",
+    "Key insight 3 from the feedback"
+  ],
+  "optimizedVersions": [
+    {
+      "versionNumber": 1,
+      "strategyFocus": "Credibility & Proof",
+      "headlines": [
+        "Headline 1 (≤30 chars)",
+        "Headline 2 (≤30 chars)",
+        "Headline 3 (≤30 chars)"
+      ],
+      "descriptions": [
+        "Description 1 with CTA (≤90 chars)",
+        "Description 2 with value prop (≤90 chars)"
+      ]
+    },
+    {
+      "versionNumber": 2,
+      "strategyFocus": "Value & ROI",
+      "headlines": ["...", "...", "..."],
+      "descriptions": ["...", "..."]
+    },
+    {
+      "versionNumber": 3,
+      "strategyFocus": "Simplicity & Ease",
+      "headlines": ["...", "...", "..."],
+      "descriptions": ["...", "..."]
+    }
+  ]
+}
+
+REMEMBER: Enforce character limits strictly. Headlines ≤30 chars. Descriptions ≤90 chars.`;
+    } else {
+      // Meta Ads synthesis prompt (original)
+      synthesisPrompt = `You are a world class copywriter. You have 40 years of experience writing direct response copy from direct mail to emails and everything in between.
 
 Your assignment:
 1. I will give you an ad we ran
@@ -126,6 +203,7 @@ Return your response as valid JSON (no markdown, no code fences) with this struc
     }
   ]
 }`;
+    }
 
     console.log('[Copywriter Synthesis] Calling Claude API...');
 

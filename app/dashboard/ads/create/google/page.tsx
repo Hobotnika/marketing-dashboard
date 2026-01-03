@@ -87,6 +87,40 @@ interface AiPrompt {
   isDefault: boolean;
 }
 
+interface AvatarSet {
+  setName: string;
+  niche: string;
+  count: number;
+}
+
+interface AvatarStatus {
+  name: string;
+  status: 'pending' | 'processing' | 'completed';
+  time?: number;
+}
+
+interface RatingResults {
+  summary: {
+    totalAvatars: number;
+    positive: number;
+    mixed: number;
+    negative: number;
+    processingTimeMs: number;
+  };
+  feedbacks: Array<{
+    avatarName: string;
+    feedback: string;
+    sentiment: 'positive' | 'mixed' | 'negative';
+    processing_time: number;
+    demographics: {
+      age: number;
+      gender: string;
+      location: string;
+      income: string;
+    };
+  }>;
+}
+
 export default function GoogleAdCreatePage() {
   const router = useRouter();
   const [landingPage, setLandingPage] = useState('');
@@ -101,8 +135,22 @@ export default function GoogleAdCreatePage() {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [savedAdId, setSavedAdId] = useState<string>('');
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Avatar Rating State
+  const [avatarSets, setAvatarSets] = useState<AvatarSet[]>([]);
+  const [selectedAvatarSet, setSelectedAvatarSet] = useState<string>('');
+  const [isRating, setIsRating] = useState(false);
+  const [ratingProgress, setRatingProgress] = useState<{
+    completed: number;
+    total: number;
+    avatars: AvatarStatus[];
+  }>({ completed: 0, total: 0, avatars: [] });
+  const [ratingResults, setRatingResults] = useState<RatingResults | null>(null);
+  const [showRatingResults, setShowRatingResults] = useState(false);
+  const [ratedAdCopy, setRatedAdCopy] = useState<string>('');
 
   useEffect(() => {
     // Fetch available prompts for Google Ads
@@ -114,6 +162,16 @@ export default function GoogleAdCreatePage() {
         }
       })
       .catch(err => console.error('Failed to load prompts:', err));
+
+    // Fetch available avatar sets
+    fetch('/api/avatars')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          setAvatarSets(data.avatarSets || []);
+        }
+      })
+      .catch(err => console.error('Failed to load avatar sets:', err));
 
     // Check for duplication parameter
     const params = new URLSearchParams(window.location.search);
@@ -271,6 +329,12 @@ export default function GoogleAdCreatePage() {
         throw new Error(data.error || 'Failed to save campaign');
       }
 
+      // Capture the saved ad ID for rating
+      if (data.data && data.data.id) {
+        setSavedAdId(data.data.id);
+        console.log('[Save] Google Ads campaign saved with ID:', data.data.id);
+      }
+
       setSaveSuccess('Campaign saved successfully!');
       setIsSaved(true);
 
@@ -280,6 +344,86 @@ export default function GoogleAdCreatePage() {
       setSaveError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleRateAd = async () => {
+    if (!selectedAvatarSet || !result || !savedAdId) {
+      setSaveError('Please save campaign and select an avatar set first');
+      setTimeout(() => setSaveError(null), 5000);
+      return;
+    }
+
+    // Format Google Ads for rating - include all headlines and descriptions
+    const allHeadlines = [
+      ...result.responsive_search_ad.headlines.price_focused,
+      ...result.responsive_search_ad.headlines.social_proof,
+      ...result.responsive_search_ad.headlines.authority,
+    ];
+
+    const adCopyForRating = `
+GOOGLE SEARCH AD CAMPAIGN
+Primary Keyword: ${primaryKeyword}
+
+=== HEADLINES (15 Total) ===
+
+Price-Focused Headlines:
+${result.responsive_search_ad.headlines.price_focused.map((h, i) => `${i + 1}. ${h.text}`).join('\n')}
+
+Social Proof Headlines:
+${result.responsive_search_ad.headlines.social_proof.map((h, i) => `${i + 1}. ${h.text}`).join('\n')}
+
+Authority Headlines:
+${result.responsive_search_ad.headlines.authority.map((h, i) => `${i + 1}. ${h.text}`).join('\n')}
+
+=== DESCRIPTIONS (5 Total) ===
+${result.responsive_search_ad.descriptions.map((d, i) => `${i + 1}. ${d.text}`).join('\n')}
+
+=== AD EXTENSIONS ===
+
+Sitelinks:
+${result.sitelinks.map((s, i) => `${i + 1}. ${s.link_text}: ${s.description_1} ${s.description_2}`).join('\n')}
+
+Callouts:
+${result.callouts.map((c, i) => `${i + 1}. ${c.text}`).join('\n')}
+
+Structured Snippets:
+${result.structured_snippets.map((s, i) => `${i + 1}. ${s.header}: ${s.values.map(v => v.text).join(', ')}`).join('\n')}
+
+Landing Page: ${landingPage}
+    `.trim();
+
+    console.log('[Frontend] Rating Google Ads campaign with ID:', savedAdId);
+    console.log('[Frontend] Avatar set:', selectedAvatarSet);
+
+    setIsRating(true);
+    setShowRatingResults(false);
+    setRatingProgress({ completed: 0, total: 13, avatars: [] });
+    setRatedAdCopy(adCopyForRating);
+
+    try {
+      const response = await fetch(`/api/ads/${savedAdId}/rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          avatarSetName: selectedAvatarSet,
+          adCopy: adCopyForRating,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to rate ad');
+      }
+
+      setRatingResults(data);
+      setShowRatingResults(true);
+    } catch (error) {
+      console.error('Rating failed:', error);
+      alert(error instanceof Error ? error.message : 'Failed to rate ad');
+    } finally {
+      setIsRating(false);
     }
   };
 
@@ -526,6 +670,87 @@ export default function GoogleAdCreatePage() {
               </div>
             )}
 
+            {/* Avatar Rating Section */}
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-6">
+              <div className="mb-4">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                  <span className="text-2xl">⭐</span>
+                  Boost Ad Quality with Avatar Rating
+                </h3>
+                <p className="text-gray-700 dark:text-gray-300">
+                  Get feedback from customer personas to understand how your target audience would react to this Google Ads campaign.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Select Avatar Set
+                  </label>
+                  <select
+                    value={selectedAvatarSet}
+                    onChange={(e) => setSelectedAvatarSet(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-zinc-800 dark:text-white"
+                    disabled={isRating}
+                  >
+                    <option value="">Choose avatar set...</option>
+                    {avatarSets.map(set => (
+                      <option key={set.setName} value={set.setName}>
+                        {set.setName} ({set.count} avatars)
+                      </option>
+                    ))}
+                  </select>
+                  {!selectedAvatarSet && avatarSets.length === 0 && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                      Don't have avatars yet?{' '}
+                      <Link
+                        href="/dashboard/settings/avatars/create"
+                        className="text-purple-600 dark:text-purple-400 hover:underline"
+                      >
+                        Create avatar set
+                      </Link>
+                    </p>
+                  )}
+                </div>
+
+                <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-gray-200 dark:border-zinc-800">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                    📊 This will rate your complete Google Ads campaign including all headlines, descriptions, and extensions.
+                  </p>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Processing time: 30-60 seconds
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleRateAd}
+                  disabled={!isSaved || !selectedAvatarSet || isRating}
+                  className={`w-full px-4 py-3 ${
+                    isSaved
+                      ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700'
+                      : 'bg-gray-400 cursor-not-allowed'
+                  } text-white rounded-lg transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+                >
+                  <span className="text-lg">{isSaved ? '⚡' : '💾'}</span>
+                  {isRating
+                    ? 'Rating in Progress...'
+                    : isSaved
+                    ? 'Rate Campaign with Avatars'
+                    : 'Save Campaign First to Rate'}
+                </button>
+
+                {!isSaved && (
+                  <p className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+                    <span>💡</span>
+                    <span>Save the campaign first before rating</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
             {/* Analysis */}
             <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 border border-gray-200 dark:border-zinc-800">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
@@ -734,6 +959,29 @@ export default function GoogleAdCreatePage() {
                   qualityScore={result.quality_score_prediction.predicted_score}
                 />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Rating Progress Modal */}
+        <RatingProgressModal
+          isOpen={isRating}
+          avatarStatuses={ratingProgress.avatars}
+          completedCount={ratingProgress.completed}
+          totalAvatars={ratingProgress.total}
+        />
+
+        {/* Rating Results Modal */}
+        {showRatingResults && ratingResults && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="my-8">
+              <RatingResults
+                summary={ratingResults.summary}
+                feedbacks={ratingResults.feedbacks}
+                onClose={() => setShowRatingResults(false)}
+                adId={savedAdId}
+                originalAdCopy={ratedAdCopy}
+              />
             </div>
           </div>
         )}
