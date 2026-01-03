@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { AIAnalysisButton } from '@/components/ai/AIAnalysisButton';
+import { AnalysisModal } from '@/components/ai/AnalysisModal';
+import { AnalysisHistory } from '@/components/ai/AnalysisHistory';
 
 interface KPISnapshot {
   id: string;
@@ -43,10 +46,33 @@ export default function KPIsDashboard() {
     churnReasons: '',
   });
 
+  // AI Analysis State
+  const [prompts, setPrompts] = useState<any[]>([]);
+  const [currentAnalysis, setCurrentAnalysis] = useState<any>(null);
+  const [analysisRefreshTrigger, setAnalysisRefreshTrigger] = useState(0);
+
   // Fetch KPI data on mount
   useEffect(() => {
     fetchKPIs();
+    fetchAIPrompts();
   }, []);
+
+  // Fetch AI prompts for KPIS section
+  async function fetchAIPrompts() {
+    try {
+      const res = await fetch('/api/ai/prompts?section=kpis');
+      const data = await res.json();
+      setPrompts(data.prompts || []);
+    } catch (error) {
+      console.error('Error fetching AI prompts:', error);
+    }
+  }
+
+  // Handle analysis completion
+  function handleAnalysisComplete(analysis: any) {
+    setCurrentAnalysis(analysis);
+    setAnalysisRefreshTrigger(prev => prev + 1);
+  }
 
   async function fetchKPIs() {
     try {
@@ -507,6 +533,79 @@ export default function KPIsDashboard() {
             </button>
           </div>
         </div>
+
+        {/* AI Analysis Section */}
+        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 mb-8 border border-gray-200 dark:border-zinc-800">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" />
+            </svg>
+            AI Analysis
+          </h2>
+
+          {prompts.length > 0 ? (
+            <>
+              {/* AI Action Buttons */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                {prompts.map((prompt) => (
+                  <AIAnalysisButton
+                    key={prompt.id}
+                    promptTemplateId={prompt.id}
+                    promptName={prompt.promptName}
+                    sectionName="kpis"
+                    onComplete={handleAnalysisComplete}
+                  />
+                ))}
+              </div>
+
+              {/* Analysis History */}
+              <AnalysisHistory
+                sectionName="kpis"
+                limit={5}
+                refreshTrigger={analysisRefreshTrigger}
+              />
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                No AI prompts configured yet. Seed default prompts to get started.
+              </p>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/ai/seed-prompts', {
+                      method: 'POST',
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      await fetchAIPrompts();
+                      alert('✅ Default KPIS prompts seeded successfully!');
+                    } else {
+                      alert(data.error || 'Failed to seed prompts');
+                    }
+                  } catch (error) {
+                    console.error('Error seeding prompts:', error);
+                    alert('Failed to seed prompts');
+                  }
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all"
+              >
+                <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" />
+                </svg>
+                Seed Default Prompts
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Show analysis modal if exists */}
+        {currentAnalysis && (
+          <AnalysisModal
+            analysis={currentAnalysis}
+            onClose={() => setCurrentAnalysis(null)}
+          />
+        )}
 
         {/* Funnel Visualization */}
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 border border-gray-200 dark:border-zinc-800">

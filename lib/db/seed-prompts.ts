@@ -360,3 +360,93 @@ if (require.main === module) {
       process.exit(1);
     });
 }
+
+// ============================================
+// BUSINESS OS AI PROMPTS
+// ============================================
+
+import { aiPromptTemplates } from './schema';
+
+// Default prompts for KPIS section
+export const DEFAULT_KPIS_PROMPTS = [
+  {
+    sectionName: 'kpis',
+    promptName: 'Weekly Funnel Analysis',
+    description: 'Analyze funnel metrics and identify bottlenecks',
+    systemPrompt: `You are an expert sales funnel analyst with 20 years of experience.
+Your job is to analyze sales funnel data and provide actionable insights.
+
+Key responsibilities:
+- Identify conversion bottlenecks
+- Spot unusual trends or patterns
+- Provide specific, actionable recommendations
+- Be direct and concise
+- Focus on what will move the needle
+
+Do NOT:
+- Give generic advice
+- Be overly positive or negative
+- Suggest things that require huge resources`,
+    userPromptTemplate: `Analyze my sales funnel data from the last 30 days:
+
+{{kpis_last_30_days}}
+
+Provide:
+1. Key bottleneck (biggest conversion drop)
+2. Unusual patterns or trends
+3. Top 3 specific actions to improve conversion
+4. Expected impact of each action
+
+Be direct and actionable. Format with clear headers.`,
+    dataInputs: JSON.stringify(['kpis_last_30_days']),
+    triggers: JSON.stringify(['manual']),
+  },
+  {
+    sectionName: 'kpis',
+    promptName: 'Daily Progress Check',
+    description: 'Compare today vs yesterday',
+    systemPrompt: `You are a supportive sales coach who provides daily encouragement and accountability.
+
+Your job is to:
+- Celebrate wins (even small ones)
+- Identify if something needs attention
+- Keep the person motivated
+- Be warm but honest`,
+    userPromptTemplate: `Compare my performance:
+
+Last 7 days:
+{{kpis_last_7_days}}
+
+Give me:
+1. Biggest win from today
+2. One thing to watch
+3. Motivational note (1 sentence)
+
+Keep it brief and positive.`,
+    dataInputs: JSON.stringify(['kpis_last_7_days']),
+    triggers: JSON.stringify(['manual']),
+  },
+];
+
+/**
+ * Seed default KPIS prompts for an organization
+ */
+export async function seedDefaultKpisPrompts(organizationId: string, userId: string) {
+  console.log('🌱 Seeding default KPIS AI prompts...');
+
+  try {
+    for (const prompt of DEFAULT_KPIS_PROMPTS) {
+      await db.insert(aiPromptTemplates).values({
+        organizationId,
+        ...prompt,
+        createdBy: userId,
+      });
+      console.log(`✅ Created KPIS prompt: ${prompt.promptName}`);
+    }
+
+    console.log(`\n✨ Successfully seeded ${DEFAULT_KPIS_PROMPTS.length} KPIS prompts!`);
+  } catch (error) {
+    console.error('❌ Error seeding KPIS prompts:', error);
+    throw error;
+  }
+}

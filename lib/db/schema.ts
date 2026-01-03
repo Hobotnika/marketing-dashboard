@@ -351,6 +351,123 @@ export const incomeActivitiesRelations = relations(incomeActivities, ({ one }) =
   }),
 }));
 
+// ============================================
+// UNIVERSAL AI INFRASTRUCTURE (Business OS)
+// ============================================
+
+// AI Prompt Templates table (Universal AI system for all sections)
+export const aiPromptTemplates = sqliteTable('ai_prompt_templates', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Which section this prompt belongs to
+  sectionName: text('section_name').notNull(), // 'kpis', 'marketing', 'congruence', etc.
+
+  // Prompt configuration
+  promptName: text('prompt_name').notNull(), // "Weekly Analysis", "Daily Insights"
+  description: text('description'), // What this prompt does
+
+  // AI persona/role
+  systemPrompt: text('system_prompt').notNull(), // "You are an expert sales analyst..."
+
+  // Template for user prompt (can have variables like {{kpis_data}})
+  userPromptTemplate: text('user_prompt_template').notNull(),
+
+  // What data this prompt needs (stored as JSON string array)
+  dataInputs: text('data_inputs').notNull(), // JSON: ["kpis_last_30_days", "churn_reasons"]
+
+  // When this prompt should run (stored as JSON string array)
+  triggers: text('triggers').notNull().default('[]'), // JSON: ["manual", "weekly_sunday"]
+
+  // Active/inactive
+  isActive: integer('is_active', { mode: 'boolean' }).default(true).notNull(),
+
+  // Who created it
+  createdBy: text('created_by').references(() => users.id),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('ai_prompt_template_organization_idx').on(table.organizationId),
+  sectionIdx: index('ai_prompt_template_section_idx').on(table.sectionName),
+  activeIdx: index('ai_prompt_template_active_idx').on(table.isActive),
+}));
+
+// AI Analyses table (History/Outputs from AI analyses)
+export const aiAnalyses = sqliteTable('ai_analyses', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Who triggered this analysis
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id),
+
+  // Which section
+  sectionName: text('section_name').notNull(),
+
+  // Which prompt was used
+  promptTemplateId: text('prompt_template_id')
+    .references(() => aiPromptTemplates.id, { onDelete: 'set null' }),
+  promptName: text('prompt_name').notNull(), // Store name even if template deleted
+
+  // Input data sent to AI (JSON string)
+  inputData: text('input_data').notNull(),
+
+  // AI's response
+  output: text('output').notNull(),
+
+  // Extracted action items (stored as JSON string array, optional)
+  actionItems: text('action_items'),
+
+  // Processing info
+  tokensUsed: integer('tokens_used'),
+  processingTime: integer('processing_time'), // milliseconds
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('ai_analysis_organization_idx').on(table.organizationId),
+  sectionIdx: index('ai_analysis_section_idx').on(table.sectionName),
+  userIdx: index('ai_analysis_user_idx').on(table.userId),
+  createdAtIdx: index('ai_analysis_created_at_idx').on(table.createdAt),
+}));
+
+// Relations for AI Infrastructure
+export const aiPromptTemplatesRelations = relations(aiPromptTemplates, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [aiPromptTemplates.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [aiPromptTemplates.createdBy],
+    references: [users.id],
+  }),
+  analyses: many(aiAnalyses),
+}));
+
+export const aiAnalysesRelations = relations(aiAnalyses, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [aiAnalyses.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [aiAnalyses.userId],
+    references: [users.id],
+  }),
+  promptTemplate: one(aiPromptTemplates, {
+    fields: [aiAnalyses.promptTemplateId],
+    references: [aiPromptTemplates.id],
+  }),
+}));
+
 // Update organizations relations to include KPIs
 export const organizationsRelationsExtended = relations(organizations, ({ many }) => ({
   users: many(users),
@@ -361,6 +478,8 @@ export const organizationsRelationsExtended = relations(organizations, ({ many }
   adRatings: many(adRatings),
   kpiSnapshots: many(kpiSnapshots),
   incomeActivities: many(incomeActivities),
+  aiPromptTemplates: many(aiPromptTemplates),
+  aiAnalyses: many(aiAnalyses),
 }));
 
 // Types
@@ -390,3 +509,9 @@ export type NewKpiSnapshot = typeof kpiSnapshots.$inferInsert;
 
 export type IncomeActivity = typeof incomeActivities.$inferSelect;
 export type NewIncomeActivity = typeof incomeActivities.$inferInsert;
+
+export type AiPromptTemplate = typeof aiPromptTemplates.$inferSelect;
+export type NewAiPromptTemplate = typeof aiPromptTemplates.$inferInsert;
+
+export type AiAnalysis = typeof aiAnalyses.$inferSelect;
+export type NewAiAnalysis = typeof aiAnalyses.$inferInsert;
