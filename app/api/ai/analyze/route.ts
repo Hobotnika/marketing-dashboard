@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { protectTenantRoute } from '@/lib/api/tenant-security';
 import { db } from '@/lib/db';
-import { aiPromptTemplates, aiAnalyses, kpiSnapshots } from '@/lib/db/schema';
+import { aiPromptTemplates, aiAnalyses, kpiSnapshots, dailyRoutines } from '@/lib/db/schema';
 import { eq, and, gte, desc } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -15,7 +15,8 @@ const anthropic = new Anthropic({
 async function fetchSectionData(
   sectionName: string,
   dataInput: string,
-  organizationId: string
+  organizationId: string,
+  userId: string
 ): Promise<any> {
   // KPIS data fetchers
   if (sectionName === 'kpis') {
@@ -52,9 +53,46 @@ async function fetchSectionData(
     }
   }
 
+  // Congruence data fetchers (USER-PRIVATE)
+  if (sectionName === 'congruence') {
+    if (dataInput === 'routines_last_30_days') {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const startDateStr = startDate.toISOString().split('T')[0];
+
+      // CRITICAL: Filter by BOTH organizationId AND userId for privacy
+      const routines = await db.query.dailyRoutines.findMany({
+        where: and(
+          eq(dailyRoutines.organizationId, organizationId),
+          eq(dailyRoutines.userId, userId), // USER-PRIVATE!
+          gte(dailyRoutines.date, startDateStr)
+        ),
+        orderBy: [desc(dailyRoutines.date)],
+      });
+
+      return routines;
+    }
+
+    if (dataInput === 'routines_last_7_days') {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 7);
+      const startDateStr = startDate.toISOString().split('T')[0];
+
+      const routines = await db.query.dailyRoutines.findMany({
+        where: and(
+          eq(dailyRoutines.organizationId, organizationId),
+          eq(dailyRoutines.userId, userId), // USER-PRIVATE!
+          gte(dailyRoutines.date, startDateStr)
+        ),
+        orderBy: [desc(dailyRoutines.date)],
+      });
+
+      return routines;
+    }
+  }
+
   // Add more section data fetchers as needed
   // if (sectionName === 'marketing') { ... }
-  // if (sectionName === 'congruence') { ... }
 
   return null;
 }
@@ -111,7 +149,8 @@ export async function POST(request: Request) {
       const data = await fetchSectionData(
         sectionName,
         dataInput,
-        context.organizationId
+        context.organizationId,
+        context.userId
       );
       inputData[dataInput] = data;
     }

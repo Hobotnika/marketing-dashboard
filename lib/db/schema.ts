@@ -352,6 +352,117 @@ export const incomeActivitiesRelations = relations(incomeActivities, ({ one }) =
 }));
 
 // ============================================
+// CONGRUENCE MANIFESTO (Business OS - User Private)
+// ============================================
+
+// Daily routine tracking (user-private)
+export const dailyRoutines = sqliteTable('daily_routines', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant + user-scoped
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  // Privacy flag (always true for congruence)
+  isPrivate: integer('is_private', { mode: 'boolean' }).default(true).notNull(),
+
+  // Date for this routine (stored as YYYY-MM-DD string)
+  date: text('date').notNull(),
+
+  // Morning routine items
+  exerciseCompleted: integer('exercise_completed', { mode: 'boolean' }).default(false),
+  exerciseType: text('exercise_type'), // "30min run", "gym workout"
+  exerciseDuration: integer('exercise_duration'), // minutes
+
+  gratitudeCompleted: integer('gratitude_completed', { mode: 'boolean' }).default(false),
+  gratitudeEntry: text('gratitude_entry'), // What they're grateful for
+
+  meditationCompleted: integer('meditation_completed', { mode: 'boolean' }).default(false),
+  meditationDuration: integer('meditation_duration'), // minutes
+
+  breathworkCompleted: integer('breathwork_completed', { mode: 'boolean' }).default(false),
+  breathworkDuration: integer('breathwork_duration'), // minutes
+
+  // Self-image check-in (optional daily reflection)
+  selfImageUpdate: text('self_image_update'),
+
+  // Overall completion (calculated)
+  completionRate: integer('completion_rate'), // 0-100%
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('routine_organization_idx').on(table.organizationId),
+  userIdx: index('routine_user_idx').on(table.userId),
+  dateIdx: index('routine_date_idx').on(table.date),
+  // Unique: one routine per user per day
+  uniqueUserDate: uniqueIndex('routine_unique_user_date_idx').on(table.organizationId, table.userId, table.date),
+}));
+
+// Principles & purpose (user-private, infrequently updated)
+export const userPrinciples = sqliteTable('user_principles', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  isPrivate: integer('is_private', { mode: 'boolean' }).default(true).notNull(),
+
+  // Core principles (stored as JSON string array)
+  principles: text('principles'), // JSON: ["Be present", "Add value", "Stay curious"]
+
+  // Life purpose statement
+  purpose: text('purpose'),
+
+  // Self-image document (longer reflection)
+  selfImage: text('self_image'),
+
+  // When to show reminders
+  showPrincipleReminder: integer('show_principle_reminder', { mode: 'boolean' }).default(true),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('principles_organization_idx').on(table.organizationId),
+  userIdx: index('principles_user_idx').on(table.userId),
+  // Unique: one principles record per user
+  uniqueUser: uniqueIndex('principles_unique_user_idx').on(table.organizationId, table.userId),
+}));
+
+// Relations for Congruence tables
+export const dailyRoutinesRelations = relations(dailyRoutines, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [dailyRoutines.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [dailyRoutines.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userPrinciplesRelations = relations(userPrinciples, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [userPrinciples.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [userPrinciples.userId],
+    references: [users.id],
+  }),
+}));
+
+// ============================================
 // UNIVERSAL AI INFRASTRUCTURE (Business OS)
 // ============================================
 
@@ -468,7 +579,7 @@ export const aiAnalysesRelations = relations(aiAnalyses, ({ one }) => ({
   }),
 }));
 
-// Update organizations relations to include KPIs
+// Update organizations relations to include all Business OS tables
 export const organizationsRelationsExtended = relations(organizations, ({ many }) => ({
   users: many(users),
   apiLogs: many(apiLogs),
@@ -478,6 +589,8 @@ export const organizationsRelationsExtended = relations(organizations, ({ many }
   adRatings: many(adRatings),
   kpiSnapshots: many(kpiSnapshots),
   incomeActivities: many(incomeActivities),
+  dailyRoutines: many(dailyRoutines),
+  userPrinciples: many(userPrinciples),
   aiPromptTemplates: many(aiPromptTemplates),
   aiAnalyses: many(aiAnalyses),
 }));
@@ -515,3 +628,9 @@ export type NewAiPromptTemplate = typeof aiPromptTemplates.$inferInsert;
 
 export type AiAnalysis = typeof aiAnalyses.$inferSelect;
 export type NewAiAnalysis = typeof aiAnalyses.$inferInsert;
+
+export type DailyRoutine = typeof dailyRoutines.$inferSelect;
+export type NewDailyRoutine = typeof dailyRoutines.$inferInsert;
+
+export type UserPrinciples = typeof userPrinciples.$inferSelect;
+export type NewUserPrinciples = typeof userPrinciples.$inferInsert;

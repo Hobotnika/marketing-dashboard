@@ -428,6 +428,70 @@ Keep it brief and positive.`,
   },
 ];
 
+// Default prompts for Congruence section
+export const DEFAULT_CONGRUENCE_PROMPTS = [
+  {
+    sectionName: 'congruence',
+    promptName: 'Pattern Analyzer',
+    description: 'Detect habit patterns and correlations',
+    systemPrompt: `You are a behavioral psychologist with expertise in habit formation and personal development.
+
+Your job is to:
+- Identify patterns in daily routines
+- Find correlations between habits and outcomes
+- Detect when someone is slipping or excelling
+- Provide data-driven insights
+- Be observant and insightful
+
+Do NOT:
+- Judge or criticize
+- Give generic advice
+- Miss important patterns
+- Ignore gradual changes`,
+    userPromptTemplate: `Analyze my last 30 days of morning routines:
+
+{{routines_last_30_days}}
+
+Provide:
+1. Key patterns (e.g., "You skip exercise on Mondays")
+2. Correlations (e.g., "Meditation days show higher completion rates")
+3. Gratitude themes (recurring topics in entries)
+4. Streaks and consistency
+5. One specific insight to improve
+
+Be specific and data-driven.`,
+    dataInputs: JSON.stringify(['routines_last_30_days']),
+    triggers: JSON.stringify(['manual']),
+  },
+  {
+    sectionName: 'congruence',
+    promptName: 'Motivation Coach',
+    description: 'Daily encouragement and accountability',
+    systemPrompt: `You are an energetic personal development coach who celebrates progress and gently holds people accountable.
+
+Your job is to:
+- Celebrate streaks and wins
+- Provide gentle accountability for misses
+- Keep people motivated
+- Be warm and encouraging
+- Focus on progress, not perfection
+
+Tone: Energetic, supportive, genuine`,
+    userPromptTemplate: `My last 7 days of routines:
+
+{{routines_last_7_days}}
+
+Give me:
+1. Celebration (what I did well)
+2. Gentle accountability (what I missed)
+3. Motivational note (1-2 sentences, energizing)
+
+Keep it brief and positive!`,
+    dataInputs: JSON.stringify(['routines_last_7_days']),
+    triggers: JSON.stringify(['manual']),
+  },
+];
+
 /**
  * Seed default KPIS prompts for an organization
  */
@@ -449,4 +513,39 @@ export async function seedDefaultKpisPrompts(organizationId: string, userId: str
     console.error('❌ Error seeding KPIS prompts:', error);
     throw error;
   }
+}
+
+/**
+ * Seed default Congruence prompts for an organization
+ */
+export async function seedDefaultCongruencePrompts(organizationId: string, userId: string) {
+  console.log('🌱 Seeding default Congruence AI prompts...');
+
+  try {
+    for (const prompt of DEFAULT_CONGRUENCE_PROMPTS) {
+      await db.insert(aiPromptTemplates).values({
+        organizationId,
+        ...prompt,
+        createdBy: userId,
+      });
+      console.log(`✅ Created Congruence prompt: ${prompt.promptName}`);
+    }
+
+    console.log(`\n✨ Successfully seeded ${DEFAULT_CONGRUENCE_PROMPTS.length} Congruence prompts!`);
+  } catch (error) {
+    console.error('❌ Error seeding Congruence prompts:', error);
+    throw error;
+  }
+}
+
+/**
+ * Seed all default Business OS prompts for an organization
+ */
+export async function seedAllBusinessOSPrompts(organizationId: string, userId: string) {
+  console.log('🌱 Seeding all Business OS AI prompts...');
+
+  await seedDefaultKpisPrompts(organizationId, userId);
+  await seedDefaultCongruencePrompts(organizationId, userId);
+
+  console.log('\n✨ Successfully seeded all Business OS prompts!');
 }
