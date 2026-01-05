@@ -299,33 +299,111 @@ export const kpiSnapshots = sqliteTable('kpi_snapshots', {
   organizationDateIdx: uniqueIndex('kpi_organization_date_idx').on(table.organizationId, table.date), // One entry per org per day
 }));
 
-// Income Activities table (User-level attribution)
+// Income Activities table (Financial tracking - Company-level)
 export const incomeActivities = sqliteTable('income_activities', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
   organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
 
-  // Which user did this activity
+  // Which user logged this income
   userId: text('user_id').notNull().references(() => users.id),
 
-  // Date of activity (stored as YYYY-MM-DD string)
+  // Date of income (stored as YYYY-MM-DD string)
   date: text('date').notNull(),
 
-  // Activity details
-  activityType: text('activity_type', { enum: ['content', 'dm', 'call', 'close', 'other'] }).notNull(),
+  // Income source
+  source: text('source', { enum: ['content_ads', 'messages_dms', 'strategy_calls', 'other'] }).notNull(),
   description: text('description'),
-  value: integer('value'), // Revenue if applicable (in cents to avoid decimals)
+  amount: integer('amount'), // Revenue in cents to avoid decimals
 
-  // Link to funnel stage
-  funnelStage: text('funnel_stage', { enum: ['exposure', 'lead', 'qualified', 'ss1', 'checkin', 'prescription', 'close', 'upsell'] }),
+  // Optional link to KPI stage
+  kpisStage: text('kpis_stage'), // 'exposure', 'lead', 'qualified', 'ss1', etc.
 
   // Timestamps
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('activity_organization_idx').on(table.organizationId),
-  userIdx: index('activity_user_idx').on(table.userId),
-  dateIdx: index('activity_date_idx').on(table.date),
+  organizationIdx: index('income_organization_idx').on(table.organizationId),
+  userIdx: index('income_user_idx').on(table.userId),
+  dateIdx: index('income_date_idx').on(table.date),
+  organizationDateIdx: index('income_organization_date_idx').on(table.organizationId, table.date),
+}));
+
+// Transactions table (Expense tracking - Company-level)
+export const transactions = sqliteTable('transactions', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Which user logged this transaction
+  userId: text('user_id').notNull().references(() => users.id),
+
+  // Date of transaction (stored as YYYY-MM-DD string)
+  date: text('date').notNull(),
+
+  // Transaction details
+  category: text('category', {
+    enum: ['ads', 'software', 'contractors', 'education', 'office', 'other']
+  }).notNull(),
+  description: text('description').notNull(),
+  amount: integer('amount').notNull(), // Expense in cents
+
+  // Optional metadata
+  vendor: text('vendor'),
+  notes: text('notes'),
+
+  // Timestamps
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('transaction_organization_idx').on(table.organizationId),
+  userIdx: index('transaction_user_idx').on(table.userId),
+  dateIdx: index('transaction_date_idx').on(table.date),
+  categoryIdx: index('transaction_category_idx').on(table.category),
+  organizationDateIdx: index('transaction_organization_date_idx').on(table.organizationId, table.date),
+}));
+
+// Cash Flow Snapshots table (Daily financial summaries - Company-level)
+export const cashFlowSnapshots = sqliteTable('cash_flow_snapshots', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Which user created this snapshot
+  userId: text('user_id').notNull().references(() => users.id),
+
+  // Date for this snapshot (stored as YYYY-MM-DD string)
+  date: text('date').notNull(),
+
+  // Totals (all amounts in cents)
+  totalRevenue: integer('total_revenue').notNull().default(0),
+  totalExpenses: integer('total_expenses').notNull().default(0),
+  netCashFlow: integer('net_cash_flow').notNull().default(0),
+
+  // Revenue breakdown by source
+  revenueFromAds: integer('revenue_from_ads').notNull().default(0),
+  revenueFromDMs: integer('revenue_from_dms').notNull().default(0),
+  revenueFromCalls: integer('revenue_from_calls').notNull().default(0),
+  revenueFromOther: integer('revenue_from_other').notNull().default(0),
+
+  // Expense breakdown by category
+  expenseAds: integer('expense_ads').notNull().default(0),
+  expenseSoftware: integer('expense_software').notNull().default(0),
+  expenseContractors: integer('expense_contractors').notNull().default(0),
+  expenseEducation: integer('expense_education').notNull().default(0),
+  expenseOffice: integer('expense_office').notNull().default(0),
+  expenseOther: integer('expense_other').notNull().default(0),
+
+  // Timestamps
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('cashflow_organization_idx').on(table.organizationId),
+  dateIdx: index('cashflow_date_idx').on(table.date),
+  organizationDateIdx: uniqueIndex('cashflow_organization_date_idx').on(table.organizationId, table.date),
 }));
 
 // Relations for KPIs
@@ -347,6 +425,28 @@ export const incomeActivitiesRelations = relations(incomeActivities, ({ one }) =
   }),
   user: one(users, {
     fields: [incomeActivities.userId],
+    references: [users.id],
+  }),
+}));
+
+export const transactionsRelations = relations(transactions, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [transactions.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [transactions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const cashFlowSnapshotsRelations = relations(cashFlowSnapshots, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [cashFlowSnapshots.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [cashFlowSnapshots.userId],
     references: [users.id],
   }),
 }));
@@ -589,6 +689,8 @@ export const organizationsRelationsExtended = relations(organizations, ({ many }
   adRatings: many(adRatings),
   kpiSnapshots: many(kpiSnapshots),
   incomeActivities: many(incomeActivities),
+  transactions: many(transactions),
+  cashFlowSnapshots: many(cashFlowSnapshots),
   dailyRoutines: many(dailyRoutines),
   userPrinciples: many(userPrinciples),
   aiPromptTemplates: many(aiPromptTemplates),
@@ -622,6 +724,12 @@ export type NewKpiSnapshot = typeof kpiSnapshots.$inferInsert;
 
 export type IncomeActivity = typeof incomeActivities.$inferSelect;
 export type NewIncomeActivity = typeof incomeActivities.$inferInsert;
+
+export type Transaction = typeof transactions.$inferSelect;
+export type NewTransaction = typeof transactions.$inferInsert;
+
+export type CashFlowSnapshot = typeof cashFlowSnapshots.$inferSelect;
+export type NewCashFlowSnapshot = typeof cashFlowSnapshots.$inferInsert;
 
 export type AiPromptTemplate = typeof aiPromptTemplates.$inferSelect;
 export type NewAiPromptTemplate = typeof aiPromptTemplates.$inferInsert;

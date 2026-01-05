@@ -492,6 +492,82 @@ Keep it brief and positive!`,
   },
 ];
 
+// ============================================
+// FINANCIAL COMMAND CENTER - AI PROMPTS
+// ============================================
+
+export const DEFAULT_FINANCIAL_PROMPTS = [
+  {
+    sectionName: 'financial',
+    promptName: 'Cash Flow Advisor',
+    description: 'Analyze spending patterns and cash flow health',
+    systemPrompt: `You are a financial advisor specializing in small business cash flow management.
+
+Your job is to:
+- Identify spending inefficiencies
+- Spot concerning cash flow patterns
+- Provide specific recommendations to improve profitability
+- Be direct and actionable
+- Focus on what will move the needle financially
+
+Do NOT:
+- Give generic advice
+- Recommend things that require massive capital
+- Miss important red flags in the numbers`,
+    userPromptTemplate: `Analyze my last 30 days of financial data:
+
+**Revenue breakdown:**
+{{income_last_30_days}}
+
+**Expenses breakdown:**
+{{transactions_last_30_days}}
+
+Provide:
+1. **Cash flow health score** (0-100) with reasoning
+2. **Biggest spending concern** (specific category/pattern)
+3. **Revenue optimization opportunity**
+4. **Top 3 specific actions** to improve cash flow
+5. **Expected financial impact** of each action
+
+Be direct and numbers-focused.`,
+    dataInputs: JSON.stringify(['income_last_30_days', 'transactions_last_30_days']),
+    triggers: JSON.stringify(['manual']),
+  },
+  {
+    sectionName: 'financial',
+    promptName: 'Revenue Optimizer',
+    description: 'Identify revenue growth opportunities',
+    systemPrompt: `You are a revenue optimization expert with 15 years of experience.
+
+Your job is to:
+- Identify underperforming revenue sources
+- Find patterns in high-performing activities
+- Provide specific, actionable recommendations
+- Be encouraging but honest
+- Focus on scalable growth
+
+Tone: Analytical, supportive, growth-minded`,
+    userPromptTemplate: `Analyze my revenue data:
+
+**Last 30 days income breakdown:**
+{{income_last_30_days}}
+
+**Last 30 days KPIs (for context):**
+{{kpis_last_30_days}}
+
+Provide:
+1. **Best performing revenue source** (data-backed)
+2. **Underperforming source** that needs attention
+3. **Pattern analysis** (e.g., "Revenue spikes on Tuesdays from DM conversations")
+4. **Top 3 specific actions** to increase revenue
+5. **Which KPI stage to focus on** for maximum revenue impact
+
+Be specific with numbers and patterns.`,
+    dataInputs: JSON.stringify(['income_last_30_days', 'kpis_last_30_days']),
+    triggers: JSON.stringify(['manual']),
+  },
+];
+
 /**
  * Seed default KPIS prompts for an organization
  */
@@ -539,6 +615,29 @@ export async function seedDefaultCongruencePrompts(organizationId: string, userI
 }
 
 /**
+ * Seed default Financial prompts for an organization
+ */
+export async function seedDefaultFinancialPrompts(organizationId: string, userId: string) {
+  console.log('🌱 Seeding default Financial AI prompts...');
+
+  try {
+    for (const prompt of DEFAULT_FINANCIAL_PROMPTS) {
+      await db.insert(aiPromptTemplates).values({
+        organizationId,
+        ...prompt,
+        createdBy: userId,
+      });
+      console.log(`✅ Created Financial prompt: ${prompt.promptName}`);
+    }
+
+    console.log(`\n✨ Successfully seeded ${DEFAULT_FINANCIAL_PROMPTS.length} Financial prompts!`);
+  } catch (error) {
+    console.error('❌ Error seeding Financial prompts:', error);
+    throw error;
+  }
+}
+
+/**
  * Seed all default Business OS prompts for an organization
  */
 export async function seedAllBusinessOSPrompts(organizationId: string, userId: string) {
@@ -546,6 +645,7 @@ export async function seedAllBusinessOSPrompts(organizationId: string, userId: s
 
   await seedDefaultKpisPrompts(organizationId, userId);
   await seedDefaultCongruencePrompts(organizationId, userId);
+  await seedDefaultFinancialPrompts(organizationId, userId);
 
   console.log('\n✨ Successfully seeded all Business OS prompts!');
 }

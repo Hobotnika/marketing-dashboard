@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { protectTenantRoute } from '@/lib/api/tenant-security';
 import { db } from '@/lib/db';
-import { aiPromptTemplates, aiAnalyses, kpiSnapshots, dailyRoutines } from '@/lib/db/schema';
+import { aiPromptTemplates, aiAnalyses, kpiSnapshots, dailyRoutines, incomeActivities, transactions, cashFlowSnapshots } from '@/lib/db/schema';
 import { eq, and, gte, desc } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -88,6 +88,74 @@ async function fetchSectionData(
       });
 
       return routines;
+    }
+  }
+
+  // Financial data fetchers (COMPANY-LEVEL)
+  if (sectionName === 'financial') {
+    if (dataInput === 'income_last_30_days') {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const startDateStr = startDate.toISOString().split('T')[0];
+
+      const income = await db.query.incomeActivities.findMany({
+        where: and(
+          eq(incomeActivities.organizationId, organizationId),
+          gte(incomeActivities.date, startDateStr)
+        ),
+        orderBy: [desc(incomeActivities.date)],
+      });
+
+      return income;
+    }
+
+    if (dataInput === 'transactions_last_30_days') {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const startDateStr = startDate.toISOString().split('T')[0];
+
+      const expenses = await db.query.transactions.findMany({
+        where: and(
+          eq(transactions.organizationId, organizationId),
+          gte(transactions.date, startDateStr)
+        ),
+        orderBy: [desc(transactions.date)],
+      });
+
+      return expenses;
+    }
+
+    if (dataInput === 'cashflow_last_30_days') {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const startDateStr = startDate.toISOString().split('T')[0];
+
+      const snapshots = await db.query.cashFlowSnapshots.findMany({
+        where: and(
+          eq(cashFlowSnapshots.organizationId, organizationId),
+          gte(cashFlowSnapshots.date, startDateStr)
+        ),
+        orderBy: [desc(cashFlowSnapshots.date)],
+      });
+
+      return snapshots;
+    }
+
+    // KPIs data for Revenue Optimizer prompt
+    if (dataInput === 'kpis_last_30_days') {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const startDateStr = startDate.toISOString().split('T')[0];
+
+      const kpis = await db.query.kpiSnapshots.findMany({
+        where: and(
+          eq(kpiSnapshots.organizationId, organizationId),
+          gte(kpiSnapshots.date, startDateStr)
+        ),
+        orderBy: [desc(kpiSnapshots.date)],
+      });
+
+      return kpis;
     }
   }
 
