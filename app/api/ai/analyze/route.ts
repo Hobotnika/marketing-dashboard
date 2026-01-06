@@ -1,8 +1,23 @@
 import { NextResponse } from 'next/server';
 import { protectTenantRoute } from '@/lib/api/tenant-security';
 import { db } from '@/lib/db';
-import { aiPromptTemplates, aiAnalyses, kpiSnapshots, dailyRoutines, incomeActivities, transactions, cashFlowSnapshots } from '@/lib/db/schema';
-import { eq, and, gte, desc } from 'drizzle-orm';
+import {
+  aiPromptTemplates,
+  aiAnalyses,
+  kpiSnapshots,
+  dailyRoutines,
+  incomeActivities,
+  transactions,
+  cashFlowSnapshots,
+  marketDefinitions,
+  messageFrameworks,
+  painPoints,
+  usps,
+  contentCalendar,
+  competitors,
+  customerAvatars
+} from '@/lib/db/schema';
+import { eq, and, gte, desc, asc, sql } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 
 const anthropic = new Anthropic({
@@ -159,8 +174,134 @@ async function fetchSectionData(
     }
   }
 
-  // Add more section data fetchers as needed
-  // if (sectionName === 'marketing') { ... }
+  // Marketing data fetchers (COMPANY-LEVEL)
+  if (sectionName === 'marketing') {
+    if (dataInput === 'targetMarketDescription') {
+      const market = await db.query.marketDefinitions.findFirst({
+        where: eq(marketDefinitions.organizationId, organizationId),
+      });
+      return market?.targetMarketDescription || 'Not defined yet';
+    }
+
+    if (dataInput === 'avatarsList') {
+      // Query avatar sets from Marketing Command Center
+      const avatarSets = await db
+        .select({
+          setName: customerAvatars.setName,
+          niche: customerAvatars.niche,
+          avatarCount: sql<number>`COUNT(*)`,
+        })
+        .from(customerAvatars)
+        .where(
+          and(
+            eq(customerAvatars.organizationId, organizationId),
+            eq(customerAvatars.isActive, true)
+          )
+        )
+        .groupBy(customerAvatars.setName, customerAvatars.niche);
+
+      if (avatarSets.length === 0) return 'No customer avatars defined yet';
+
+      return avatarSets
+        .map((set) => `- ${set.setName} (${set.avatarCount} personas): ${set.niche}`)
+        .join('\n');
+    }
+
+    if (dataInput === 'valueProposition') {
+      const framework = await db.query.messageFrameworks.findFirst({
+        where: eq(messageFrameworks.organizationId, organizationId),
+      });
+      return framework?.valueProposition || 'Not defined yet';
+    }
+
+    if (dataInput === 'painPointsList') {
+      const framework = await db.query.messageFrameworks.findFirst({
+        where: eq(messageFrameworks.organizationId, organizationId),
+      });
+
+      if (!framework) return 'No message framework defined yet';
+
+      const points = await db.query.painPoints.findMany({
+        where: and(
+          eq(painPoints.organizationId, organizationId),
+          eq(painPoints.messageFrameworkId, framework.id)
+        ),
+        orderBy: [asc(painPoints.displayOrder)],
+      });
+
+      if (points.length === 0) return 'No pain points defined yet';
+
+      return points.map((p) => `- ${p.description}`).join('\n');
+    }
+
+    if (dataInput === 'uspsList') {
+      const framework = await db.query.messageFrameworks.findFirst({
+        where: eq(messageFrameworks.organizationId, organizationId),
+      });
+
+      if (!framework) return 'No message framework defined yet';
+
+      const uspList = await db.query.usps.findMany({
+        where: and(
+          eq(usps.organizationId, organizationId),
+          eq(usps.messageFrameworkId, framework.id)
+        ),
+        orderBy: [asc(usps.displayOrder)],
+      });
+
+      if (uspList.length === 0) return 'No USPs defined yet';
+
+      return uspList.map((u) => `- ${u.title}: ${u.description}`).join('\n');
+    }
+
+    if (dataInput === 'recentContentList') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const startDateStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+      const content = await db.query.contentCalendar.findMany({
+        where: and(
+          eq(contentCalendar.organizationId, organizationId),
+          gte(contentCalendar.scheduledDate, startDateStr)
+        ),
+        orderBy: [desc(contentCalendar.scheduledDate)],
+        limit: 10,
+      });
+
+      if (content.length === 0) return 'No content created yet';
+
+      return content
+        .map(
+          (c) =>
+            `- ${c.scheduledDate}: [${c.platform}] ${c.title} (${c.status})`
+        )
+        .join('\n');
+    }
+
+    if (dataInput === 'platformFilter') {
+      // This should come from request body
+      return 'all platforms'; // Default, will be overridden by request
+    }
+
+    if (dataInput === 'competitorsList') {
+      const comps = await db.query.competitors.findMany({
+        where: eq(competitors.organizationId, organizationId),
+      });
+
+      if (comps.length === 0) return 'No competitors tracked yet';
+
+      return comps
+        .map(
+          (c) => `
+**${c.name}** (${c.website || 'No website'})
+Description: ${c.description || 'N/A'}
+Strengths: ${c.strengths || 'Not analyzed'}
+Weaknesses: ${c.weaknesses || 'Not analyzed'}
+    `
+        )
+        .join('\n');
+    }
+  }
 
   return null;
 }

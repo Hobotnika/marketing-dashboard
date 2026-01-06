@@ -563,6 +563,177 @@ export const userPrinciplesRelations = relations(userPrinciples, ({ one }) => ({
 }));
 
 // ============================================
+// MARKETING ENGINE (Section 4)
+// ============================================
+
+// Market Definition (WHO) - One per organization
+export const marketDefinitions = sqliteTable('market_definitions', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Who created/updated
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id),
+
+  // Market data
+  targetMarketDescription: text('target_market_description'), // 500 chars
+  primarySegment: text('primary_segment'), // 100 chars
+  secondarySegment: text('secondary_segment'), // 100 chars
+  nichePositioning: text('niche_positioning'),
+
+  // Timestamps
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('market_def_organization_idx').on(table.organizationId),
+  // Unique: one market definition per organization
+  uniqueOrg: uniqueIndex('market_def_unique_org_idx').on(table.organizationId),
+}));
+
+// Message Framework (WHAT) - One per organization
+export const messageFrameworks = sqliteTable('message_frameworks', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id),
+
+  // Core message
+  valueProposition: text('value_proposition'), // 200 chars
+
+  // Timestamps
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('msg_framework_organization_idx').on(table.organizationId),
+  uniqueOrg: uniqueIndex('msg_framework_unique_org_idx').on(table.organizationId),
+}));
+
+// Pain Points - Child of messageFrameworks
+export const painPoints = sqliteTable('pain_points', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant + Parent reference
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  messageFrameworkId: text('message_framework_id')
+    .notNull()
+    .references(() => messageFrameworks.id, { onDelete: 'cascade' }),
+
+  // Pain point data
+  description: text('description').notNull(), // 100 chars
+  displayOrder: integer('display_order').notNull().default(0),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('pain_point_organization_idx').on(table.organizationId),
+  frameworkIdx: index('pain_point_framework_idx').on(table.messageFrameworkId),
+}));
+
+// USPs - Child of messageFrameworks
+export const usps = sqliteTable('usps', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant + Parent reference
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  messageFrameworkId: text('message_framework_id')
+    .notNull()
+    .references(() => messageFrameworks.id, { onDelete: 'cascade' }),
+
+  // USP data
+  title: text('title').notNull(), // 50 chars
+  description: text('description').notNull(), // 150 chars
+  displayOrder: integer('display_order').notNull().default(0),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('usp_organization_idx').on(table.organizationId),
+  frameworkIdx: index('usp_framework_idx').on(table.messageFrameworkId),
+}));
+
+// Content Calendar - Multi-platform content planning
+export const contentCalendar = sqliteTable('content_calendar', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id),
+
+  // Content details
+  platform: text('platform', {
+    enum: ['email', 'linkedin', 'instagram', 'facebook']
+  }).notNull(),
+  scheduledDate: text('scheduled_date').notNull(), // YYYY-MM-DD
+  contentType: text('content_type').notNull(), // 'post', 'story', 'email', 'article', 'video'
+  status: text('status', {
+    enum: ['idea', 'drafted', 'scheduled', 'published']
+  }).notNull().default('idea'),
+
+  title: text('title').notNull(), // 100 chars
+  body: text('body'), // 500 chars
+  notes: text('notes'),
+
+  publishedAt: text('published_at'), // ISO timestamp when published
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('content_calendar_organization_idx').on(table.organizationId),
+  dateIdx: index('content_calendar_date_idx').on(table.scheduledDate),
+  platformIdx: index('content_calendar_platform_idx').on(table.platform),
+  statusIdx: index('content_calendar_status_idx').on(table.status),
+  organizationDateIdx: index('content_calendar_org_date_idx').on(table.organizationId, table.scheduledDate),
+}));
+
+// Competitors - Track competitive landscape
+export const competitors = sqliteTable('competitors', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id),
+
+  // Competitor info
+  name: text('name').notNull(), // 100 chars
+  website: text('website'), // 255 chars
+  description: text('description'), // 300 chars
+  strengths: text('strengths'), // What they do well
+  weaknesses: text('weaknesses'), // What they're missing
+
+  lastAnalyzedAt: text('last_analyzed_at'), // ISO timestamp
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('competitor_organization_idx').on(table.organizationId),
+}));
+
+// ============================================
 // UNIVERSAL AI INFRASTRUCTURE (Business OS)
 // ============================================
 
@@ -679,6 +850,75 @@ export const aiAnalysesRelations = relations(aiAnalyses, ({ one }) => ({
   }),
 }));
 
+// Relations for Marketing Engine
+export const marketDefinitionsRelations = relations(marketDefinitions, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [marketDefinitions.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [marketDefinitions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const messageFrameworksRelations = relations(messageFrameworks, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [messageFrameworks.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [messageFrameworks.userId],
+    references: [users.id],
+  }),
+  painPoints: many(painPoints),
+  usps: many(usps),
+}));
+
+export const painPointsRelations = relations(painPoints, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [painPoints.organizationId],
+    references: [organizations.id],
+  }),
+  framework: one(messageFrameworks, {
+    fields: [painPoints.messageFrameworkId],
+    references: [messageFrameworks.id],
+  }),
+}));
+
+export const uspsRelations = relations(usps, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [usps.organizationId],
+    references: [organizations.id],
+  }),
+  framework: one(messageFrameworks, {
+    fields: [usps.messageFrameworkId],
+    references: [messageFrameworks.id],
+  }),
+}));
+
+export const contentCalendarRelations = relations(contentCalendar, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [contentCalendar.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [contentCalendar.userId],
+    references: [users.id],
+  }),
+}));
+
+export const competitorsRelations = relations(competitors, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [competitors.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [competitors.userId],
+    references: [users.id],
+  }),
+}));
+
 // Update organizations relations to include all Business OS tables
 export const organizationsRelationsExtended = relations(organizations, ({ many }) => ({
   users: many(users),
@@ -695,6 +935,12 @@ export const organizationsRelationsExtended = relations(organizations, ({ many }
   userPrinciples: many(userPrinciples),
   aiPromptTemplates: many(aiPromptTemplates),
   aiAnalyses: many(aiAnalyses),
+  marketDefinitions: many(marketDefinitions),
+  messageFrameworks: many(messageFrameworks),
+  painPoints: many(painPoints),
+  usps: many(usps),
+  contentCalendar: many(contentCalendar),
+  competitors: many(competitors),
 }));
 
 // Types
@@ -742,3 +988,21 @@ export type NewDailyRoutine = typeof dailyRoutines.$inferInsert;
 
 export type UserPrinciples = typeof userPrinciples.$inferSelect;
 export type NewUserPrinciples = typeof userPrinciples.$inferInsert;
+
+export type MarketDefinition = typeof marketDefinitions.$inferSelect;
+export type NewMarketDefinition = typeof marketDefinitions.$inferInsert;
+
+export type MessageFramework = typeof messageFrameworks.$inferSelect;
+export type NewMessageFramework = typeof messageFrameworks.$inferInsert;
+
+export type PainPoint = typeof painPoints.$inferSelect;
+export type NewPainPoint = typeof painPoints.$inferInsert;
+
+export type Usp = typeof usps.$inferSelect;
+export type NewUsp = typeof usps.$inferInsert;
+
+export type ContentCalendar = typeof contentCalendar.$inferSelect;
+export type NewContentCalendar = typeof contentCalendar.$inferInsert;
+
+export type Competitor = typeof competitors.$inferSelect;
+export type NewCompetitor = typeof competitors.$inferInsert;

@@ -637,6 +637,149 @@ export async function seedDefaultFinancialPrompts(organizationId: string, userId
   }
 }
 
+// ============================================
+// MARKETING ENGINE - AI PROMPTS
+// ============================================
+
+export const DEFAULT_MARKETING_PROMPTS = [
+  {
+    sectionName: 'marketing',
+    promptName: 'Content Idea Generator',
+    description: 'Generate fresh content ideas for your platform',
+    systemPrompt: `You are a creative content strategist with 15 years in digital marketing.
+
+Your expertise:
+- Understanding target audience pain points
+- Creating engaging content that drives action
+- Matching content formats to platform best practices
+- Avoiding content repetition and staleness
+
+Be specific, actionable, and creative.`,
+    userPromptTemplate: `Generate 10 fresh content ideas for my business.
+
+**Target Market:**
+{{targetMarketDescription}}
+
+**Customer Avatars:**
+{{avatarsList}}
+
+**Value Proposition:**
+{{valueProposition}}
+
+**Pain Points We Address:**
+{{painPointsList}}
+
+**Unique Selling Points:**
+{{uspsList}}
+
+**Recent Content (last 30 days):**
+{{recentContentList}}
+
+**Platform Focus:** {{platformFilter}}
+
+Generate 10 content ideas that:
+1. Address customer pain points directly
+2. Showcase our unique value naturally
+3. Match {{platformFilter}} best practices
+4. Avoid repetition of recent content themes
+
+For each idea provide:
+- **Title/Hook** (attention-grabbing headline)
+- **Content Type** (post/story/article/video)
+- **Key Points** (3-4 bullet points to cover)
+- **CTA Suggestion** (call-to-action)
+
+Format as a numbered list. Be specific and actionable.`,
+    dataInputs: JSON.stringify([
+      'targetMarketDescription',
+      'avatarsList',
+      'valueProposition',
+      'painPointsList',
+      'uspsList',
+      'recentContentList',
+      'platformFilter'
+    ]),
+    triggers: JSON.stringify(['manual']),
+  },
+  {
+    sectionName: 'marketing',
+    promptName: 'Competitor Analyst',
+    description: 'Analyze competitive landscape and positioning',
+    systemPrompt: `You are a competitive intelligence analyst helping identify market positioning opportunities.
+
+Your expertise:
+- Gap analysis (what competitors do/don't do)
+- Positioning strategy
+- Market trend identification
+- Content strategy differentiation
+
+Be analytical, specific, and opportunity-focused.`,
+    userPromptTemplate: `Analyze the competitive landscape for my business.
+
+**Our Business:**
+- Value Proposition: {{valueProposition}}
+- Target Market: {{targetMarketDescription}}
+- USPs: {{uspsList}}
+
+**Our Competitors:**
+{{competitorsList}}
+
+Provide:
+
+1. **Competitive Gap Analysis**
+   - What are competitors doing that we should consider?
+   - What are we doing that competitors aren't? (Our advantages)
+   - What's nobody doing? (Blue ocean opportunities)
+
+2. **Positioning Recommendations**
+   - How should we position against competitors?
+   - What messaging angles will differentiate us?
+   - Which customer segment is underserved?
+
+3. **Content Strategy Implications**
+   - What content themes would establish thought leadership?
+   - Which topics are oversaturated (avoid)?
+   - What unique perspective can we bring?
+
+4. **Market Trend Observations**
+   - What patterns do you see across competitors?
+   - Where is the market heading?
+   - What should we prepare for?
+
+Be specific with examples and actionable recommendations.`,
+    dataInputs: JSON.stringify([
+      'valueProposition',
+      'targetMarketDescription',
+      'uspsList',
+      'competitorsList'
+    ]),
+    triggers: JSON.stringify(['manual']),
+  },
+];
+
+/**
+ * Seed default Marketing prompts for an organization
+ */
+export async function seedDefaultMarketingPrompts(organizationId: string, userId: string) {
+  console.log('🌱 Seeding default Marketing AI prompts...');
+
+  try {
+    for (const prompt of DEFAULT_MARKETING_PROMPTS) {
+      await db.insert(aiPromptTemplates).values({
+        organizationId,
+        ...prompt,
+        createdBy: userId,
+      });
+      console.log(`✅ Created Marketing prompt: ${prompt.promptName}`);
+    }
+
+    console.log(`\n✨ Successfully seeded ${DEFAULT_MARKETING_PROMPTS.length} Marketing prompts!`);
+  } catch (error) {
+    console.error('❌ Error seeding Marketing prompts:', error);
+    throw error;
+  }
+}
+
 /**
  * Seed all default Business OS prompts for an organization
  */
@@ -646,6 +789,7 @@ export async function seedAllBusinessOSPrompts(organizationId: string, userId: s
   await seedDefaultKpisPrompts(organizationId, userId);
   await seedDefaultCongruencePrompts(organizationId, userId);
   await seedDefaultFinancialPrompts(organizationId, userId);
+  await seedDefaultMarketingPrompts(organizationId, userId);
 
   console.log('\n✨ Successfully seeded all Business OS prompts!');
 }
