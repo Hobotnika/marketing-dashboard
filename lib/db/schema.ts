@@ -941,6 +941,12 @@ export const organizationsRelationsExtended = relations(organizations, ({ many }
   usps: many(usps),
   contentCalendar: many(contentCalendar),
   competitors: many(competitors),
+  clients: many(clients),
+  clientStageHistory: many(clientStageHistory),
+  clientHealthMetrics: many(clientHealthMetrics),
+  onboardingTasks: many(onboardingTasks),
+  clientMilestones: many(clientMilestones),
+  churnRiskInterventions: many(churnRiskInterventions),
 }));
 
 // Types
@@ -1006,3 +1012,303 @@ export type NewContentCalendar = typeof contentCalendar.$inferInsert;
 
 export type Competitor = typeof competitors.$inferSelect;
 export type NewCompetitor = typeof competitors.$inferInsert;
+
+// ============================================
+// CLIENT SUCCESS HUB (Section 5)
+// ============================================
+
+// Clients table (Core client database)
+export const clients = sqliteTable('clients', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Account owner/CSM
+
+  // Basic Info
+  name: text('name', { length: 100 }).notNull(),
+  email: text('email', { length: 255 }),
+  phone: text('phone', { length: 50 }),
+  company: text('company', { length: 100 }),
+  industry: text('industry', { length: 100 }),
+
+  // Commercial
+  plan: text('plan', { length: 50 }).notNull().default('starter'), // 'starter', 'pro', 'business', 'enterprise', 'custom'
+  mrr: text('mrr').notNull().default('0.00'), // Stored as decimal string
+  contractStartDate: text('contract_start_date').notNull(),
+  contractEndDate: text('contract_end_date'), // nullable for month-to-month
+
+  // Status & Health
+  status: text('status', { length: 20 }).notNull().default('active'), // 'active', 'at_risk', 'churned', 'paused'
+  currentStage: text('current_stage', { length: 20 }).notNull().default('sign_up'), // 'sign_up', 'onboarding', 'active', 'success', 'at_risk', 'churned'
+  healthScore: integer('health_score').notNull().default(50), // 0-100
+
+  // Tracking
+  lastActivityDate: text('last_activity_date'),
+  stageEnteredAt: text('stage_entered_at').notNull().$defaultFn(() => new Date().toISOString()),
+  notes: text('notes'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('clients_org_idx').on(table.organizationId),
+  statusIdx: index('clients_status_idx').on(table.status),
+  healthScoreIdx: index('clients_health_score_idx').on(table.healthScore),
+}));
+
+// Client Stage History (Track journey stage transitions)
+export const clientStageHistory = sqliteTable('client_stage_history', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  clientId: text('client_id')
+    .notNull()
+    .references(() => clients.id, { onDelete: 'cascade' }),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Who changed the stage
+
+  fromStage: text('from_stage', { length: 20 }),
+  toStage: text('to_stage', { length: 20 }).notNull(),
+  reason: text('reason'), // Optional note about why stage changed
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  clientIdx: index('client_stage_history_client_idx').on(table.clientId),
+  organizationIdx: index('client_stage_history_org_idx').on(table.organizationId),
+}));
+
+// Client Health Metrics (Manual metric logging)
+export const clientHealthMetrics = sqliteTable('client_health_metrics', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  clientId: text('client_id')
+    .notNull()
+    .references(() => clients.id, { onDelete: 'cascade' }),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Who logged this
+
+  date: text('date').notNull().$defaultFn(() => new Date().toISOString()),
+  metricType: text('metric_type', { length: 50 }).notNull(), // 'login', 'support_ticket', 'payment', 'meeting', 'feedback', 'usage'
+  value: text('value', { length: 255 }), // Flexible field for different metric types
+  notes: text('notes'),
+  impactOnHealth: integer('impact_on_health'), // +/- points to health score
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  clientIdx: index('client_health_metrics_client_idx').on(table.clientId),
+  organizationIdx: index('client_health_metrics_org_idx').on(table.organizationId),
+}));
+
+// Onboarding Tasks (Checklist for new clients)
+export const onboardingTasks = sqliteTable('onboarding_tasks', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  clientId: text('client_id')
+    .notNull()
+    .references(() => clients.id, { onDelete: 'cascade' }),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  taskName: text('task_name', { length: 200 }).notNull(),
+  isCompleted: integer('is_completed', { mode: 'boolean' }).notNull().default(false),
+  completedAt: text('completed_at'),
+  completedBy: text('completed_by').references(() => users.id), // Which team member completed it
+  dueDate: text('due_date'),
+  order: integer('order').notNull().default(0),
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false), // true for template tasks
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  clientIdx: index('onboarding_tasks_client_idx').on(table.clientId),
+  organizationIdx: index('onboarding_tasks_org_idx').on(table.organizationId),
+}));
+
+// Client Milestones (Track achievements and wins)
+export const clientMilestones = sqliteTable('client_milestones', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  clientId: text('client_id')
+    .notNull()
+    .references(() => clients.id, { onDelete: 'cascade' }),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Who logged this milestone
+
+  milestoneType: text('milestone_type', { length: 50 }).notNull(), // 'first_purchase', 'renewal', 'upsell', 'referral', 'case_study', 'champion'
+  description: text('description').notNull(),
+  achievedDate: text('achieved_date').notNull(),
+  value: text('value'), // Monetary value if applicable (stored as decimal string)
+  notes: text('notes'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  clientIdx: index('client_milestones_client_idx').on(table.clientId),
+  organizationIdx: index('client_milestones_org_idx').on(table.organizationId),
+}));
+
+// Churn Risk Interventions (Actions taken for at-risk clients)
+export const churnRiskInterventions = sqliteTable('churn_risk_interventions', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  clientId: text('client_id')
+    .notNull()
+    .references(() => clients.id, { onDelete: 'cascade' }),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Who performed intervention
+
+  riskLevel: text('risk_level', { length: 20 }).notNull(), // 'low', 'medium', 'high', 'critical'
+  interventionType: text('intervention_type', { length: 50 }).notNull(), // 'call', 'email', 'discount', 'training', 'feature_demo', 'escalation'
+  description: text('description').notNull(),
+  outcome: text('outcome', { length: 20 }), // 'retained', 'churned', 'pending', nullable
+  healthScoreBefore: integer('health_score_before'),
+  healthScoreAfter: integer('health_score_after'),
+
+  interventionDate: text('intervention_date').notNull().$defaultFn(() => new Date().toISOString()),
+  followUpDate: text('follow_up_date'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  clientIdx: index('churn_risk_interventions_client_idx').on(table.clientId),
+  organizationIdx: index('churn_risk_interventions_org_idx').on(table.organizationId),
+}));
+
+// Relations for Client Success Hub
+export const clientsRelations = relations(clients, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [clients.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [clients.userId],
+    references: [users.id],
+  }),
+  stageHistory: many(clientStageHistory),
+  healthMetrics: many(clientHealthMetrics),
+  onboardingTasks: many(onboardingTasks),
+  milestones: many(clientMilestones),
+  interventions: many(churnRiskInterventions),
+}));
+
+export const clientStageHistoryRelations = relations(clientStageHistory, ({ one }) => ({
+  client: one(clients, {
+    fields: [clientStageHistory.clientId],
+    references: [clients.id],
+  }),
+  organization: one(organizations, {
+    fields: [clientStageHistory.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [clientStageHistory.userId],
+    references: [users.id],
+  }),
+}));
+
+export const clientHealthMetricsRelations = relations(clientHealthMetrics, ({ one }) => ({
+  client: one(clients, {
+    fields: [clientHealthMetrics.clientId],
+    references: [clients.id],
+  }),
+  organization: one(organizations, {
+    fields: [clientHealthMetrics.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [clientHealthMetrics.userId],
+    references: [users.id],
+  }),
+}));
+
+export const onboardingTasksRelations = relations(onboardingTasks, ({ one }) => ({
+  client: one(clients, {
+    fields: [onboardingTasks.clientId],
+    references: [clients.id],
+  }),
+  organization: one(organizations, {
+    fields: [onboardingTasks.organizationId],
+    references: [organizations.id],
+  }),
+  completedByUser: one(users, {
+    fields: [onboardingTasks.completedBy],
+    references: [users.id],
+  }),
+}));
+
+export const clientMilestonesRelations = relations(clientMilestones, ({ one }) => ({
+  client: one(clients, {
+    fields: [clientMilestones.clientId],
+    references: [clients.id],
+  }),
+  organization: one(organizations, {
+    fields: [clientMilestones.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [clientMilestones.userId],
+    references: [users.id],
+  }),
+}));
+
+export const churnRiskInterventionsRelations = relations(churnRiskInterventions, ({ one }) => ({
+  client: one(clients, {
+    fields: [churnRiskInterventions.clientId],
+    references: [clients.id],
+  }),
+  organization: one(organizations, {
+    fields: [churnRiskInterventions.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [churnRiskInterventions.userId],
+    references: [users.id],
+  }),
+}));
+
+// Types
+export type Client = typeof clients.$inferSelect;
+export type NewClient = typeof clients.$inferInsert;
+
+export type ClientStageHistory = typeof clientStageHistory.$inferSelect;
+export type NewClientStageHistory = typeof clientStageHistory.$inferInsert;
+
+export type ClientHealthMetric = typeof clientHealthMetrics.$inferSelect;
+export type NewClientHealthMetric = typeof clientHealthMetrics.$inferInsert;
+
+export type OnboardingTask = typeof onboardingTasks.$inferSelect;
+export type NewOnboardingTask = typeof onboardingTasks.$inferInsert;
+
+export type ClientMilestone = typeof clientMilestones.$inferSelect;
+export type NewClientMilestone = typeof clientMilestones.$inferInsert;
+
+export type ChurnRiskIntervention = typeof churnRiskInterventions.$inferSelect;
+export type NewChurnRiskIntervention = typeof churnRiskInterventions.$inferInsert;

@@ -15,9 +15,15 @@ import {
   usps,
   contentCalendar,
   competitors,
-  customerAvatars
+  customerAvatars,
+  clients,
+  clientStageHistory,
+  clientHealthMetrics,
+  onboardingTasks,
+  clientMilestones,
+  churnRiskInterventions
 } from '@/lib/db/schema';
-import { eq, and, gte, desc, asc, sql } from 'drizzle-orm';
+import { eq, and, gte, desc, asc, sql, or } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 
 const anthropic = new Anthropic({
@@ -300,6 +306,141 @@ Weaknesses: ${c.weaknesses || 'Not analyzed'}
     `
         )
         .join('\n');
+    }
+  }
+
+  // Client Success Hub data fetchers (COMPANY-LEVEL)
+  if (sectionName === 'clients') {
+    if (dataInput === 'totalActiveClients') {
+      const activeClients = await db.query.clients.findMany({
+        where: and(
+          eq(clients.organizationId, organizationId),
+          eq(clients.status, 'active')
+        ),
+      });
+      return activeClients.length;
+    }
+
+    if (dataInput === 'avgHealthScore') {
+      const allClients = await db.query.clients.findMany({
+        where: eq(clients.organizationId, organizationId),
+      });
+      if (allClients.length === 0) return 0;
+      const avg = allClients.reduce((sum, c) => sum + c.healthScore, 0) / allClients.length;
+      return Math.round(avg);
+    }
+
+    if (dataInput === 'clientsAtRisk') {
+      const atRiskClients = await db
+        .select()
+        .from(clients)
+        .where(
+          and(
+            eq(clients.organizationId, organizationId),
+            or(eq(clients.status, 'at_risk'), sql`${clients.healthScore} < 50`)!
+          )
+        );
+      return atRiskClients.length;
+    }
+
+    if (dataInput === 'churnRate') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString();
+
+      const allClients = await db.query.clients.findMany({
+        where: eq(clients.organizationId, organizationId),
+      });
+
+      const recentChurns = allClients.filter(
+        (c) => c.status === 'churned' && c.updatedAt >= thirtyDaysAgoStr
+      );
+
+      const activeClients = allClients.filter((c) => c.status === 'active');
+      const totalBase = activeClients.length + recentChurns.length;
+
+      if (totalBase === 0) return '0';
+      return ((recentChurns.length / totalBase) * 100).toFixed(1);
+    }
+
+    if (dataInput === 'clientDetailsList') {
+      const allClients = await db.query.clients.findMany({
+        where: eq(clients.organizationId, organizationId),
+        orderBy: [desc(clients.createdAt)],
+        limit: 20,
+      });
+
+      if (allClients.length === 0) return 'No clients yet';
+
+      return allClients
+        .map((c) => {
+          const lastActivity = c.lastActivityDate
+            ? new Date(c.lastActivityDate).toLocaleDateString()
+            : 'Never';
+          return `- ${c.name} (${c.company || 'No company'}): Stage=${c.currentStage}, Health=${c.healthScore}/100, MRR=$${c.mrr}, Last Activity=${lastActivity}`;
+        })
+        .join('\n');
+    }
+
+    if (dataInput === 'atRiskClientsList') {
+      const atRiskClients = await db
+        .select()
+        .from(clients)
+        .where(
+          and(
+            eq(clients.organizationId, organizationId),
+            or(eq(clients.status, 'at_risk'), sql`${clients.healthScore} < 50`)!
+          )
+        )
+        .orderBy(clients.healthScore)
+        .limit(10);
+
+      if (atRiskClients.length === 0) return 'No at-risk clients';
+
+      return atRiskClients
+        .map((c) => {
+          const daysSinceActivity = c.lastActivityDate
+            ? Math.floor((Date.now() - new Date(c.lastActivityDate).getTime()) / (1000 * 60 * 60 * 24))
+            : 'Never';
+          return `- ${c.name} (${c.company || 'No company'}): Health ${c.healthScore}/100, Last login ${daysSinceActivity} days ago, Stage: ${c.currentStage}`;
+        })
+        .join('\n');
+    }
+
+    if (dataInput === 'recentChurnList') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString();
+
+      const churnedClients = await db.query.clients.findMany({
+        where: and(
+          eq(clients.organizationId, organizationId),
+          eq(clients.status, 'churned')
+        ),
+        orderBy: [desc(clients.updatedAt)],
+        limit: 5,
+      });
+
+      const recentChurns = churnedClients.filter((c) => c.updatedAt >= thirtyDaysAgoStr);
+
+      if (recentChurns.length === 0) return 'No recent churns';
+
+      return recentChurns
+        .map(
+          (c) =>
+            `- ${c.name}: Churned on ${new Date(c.updatedAt).toLocaleDateString()}, Was in ${c.currentStage}, Final Health: ${c.healthScore}/100`
+        )
+        .join('\n');
+    }
+
+    if (dataInput === 'healthTrendData') {
+      return 'Health trend analysis pending (future enhancement)';
+    }
+
+    // Individual client analysis (for Success Coach)
+    if (dataInput === 'clientName' || dataInput === 'clientCompany') {
+      // These should come from context passed in request body
+      return 'N/A';
     }
   }
 

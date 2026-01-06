@@ -32,7 +32,7 @@ export async function GET(request: Request) {
       orderBy: (prompts, { desc }) => [desc(prompts.createdAt)],
     });
 
-    return NextResponse.json({ prompts });
+    return NextResponse.json({ success: true, prompts });
   } catch (error) {
     console.error('Error fetching prompts:', error);
 
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
         );
       }
 
-      return NextResponse.json({ prompt: updated[0] });
+      return NextResponse.json({ success: true, prompt: updated[0] });
     } else {
       // Create new prompt
       const created = await db
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
         })
         .returning();
 
-      return NextResponse.json({ prompt: created[0] });
+      return NextResponse.json({ success: true, prompt: created[0] });
     }
   } catch (error) {
     console.error('Error saving prompt:', error);

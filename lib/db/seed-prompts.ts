@@ -780,6 +780,228 @@ export async function seedDefaultMarketingPrompts(organizationId: string, userId
   }
 }
 
+// ============================================
+// CLIENT SUCCESS HUB - AI PROMPTS
+// ============================================
+
+export const DEFAULT_CLIENTS_PROMPTS = [
+  {
+    sectionName: 'clients',
+    promptName: 'Churn Predictor',
+    description: 'Analyze client portfolio health and predict churn risk',
+    systemPrompt: `You are a customer success data scientist specializing in customer retention analytics and churn prediction.
+
+Your expertise:
+- Identifying churn risk indicators and patterns
+- Portfolio health assessment
+- Predictive analysis for at-risk clients
+- Data-driven intervention strategies
+- Client segmentation and cohort analysis
+
+Your job is to:
+- Assess overall client portfolio health
+- Identify high-risk clients requiring immediate attention
+- Recognize patterns in churned vs retained clients
+- Recommend specific, actionable retention strategies
+- Prioritize interventions based on impact and urgency
+
+Be specific with client names, data-backed insights, and prioritized action plans.`,
+    userPromptTemplate: `Analyze my client portfolio and predict churn risk.
+
+**Client Portfolio Overview:**
+- Total Active Clients: {{totalActiveClients}}
+- Average Health Score: {{avgHealthScore}}
+- Clients At Risk: {{clientsAtRisk}}
+- Churn Rate (30 days): {{churnRate}}%
+
+**Detailed Client Data:**
+{{clientDetailsList}}
+
+**At-Risk Clients:**
+{{atRiskClientsList}}
+
+**Recent Churn Cases:**
+{{recentChurnList}}
+
+**Health Metric Trends:**
+{{healthTrendData}}
+
+Provide a comprehensive churn risk analysis:
+
+1. **Churn Risk Assessment** (overall portfolio health)
+   - What percentage of clients are at risk?
+   - Which client segments are most vulnerable?
+   - Early warning signs you're seeing across the portfolio
+
+2. **High-Priority Interventions** (top 5 clients)
+   - Which specific clients need immediate attention?
+   - What are their specific risk factors?
+   - Recommended intervention strategy for each
+
+3. **Pattern Recognition**
+   - Common characteristics of churned clients
+   - What healthy/successful clients have in common
+   - Leading indicators of churn (30-60 days out)
+   - Correlation between health score and actual churn
+
+4. **Retention Strategy Recommendations**
+   - Product/feature improvements to reduce churn
+   - Communication cadence and engagement tactics
+   - Pricing/plan adjustments to consider
+   - Proactive success initiatives to implement
+
+5. **30-Day Action Plan**
+   - Specific, prioritized actions ranked by impact
+   - Expected impact on retention rate
+   - Success metrics to track
+   - Resource requirements
+
+Be specific with client names and provide data-backed, actionable recommendations.`,
+    dataInputs: JSON.stringify([
+      'totalActiveClients',
+      'avgHealthScore',
+      'clientsAtRisk',
+      'churnRate',
+      'clientDetailsList',
+      'atRiskClientsList',
+      'recentChurnList',
+      'healthTrendData'
+    ]),
+    triggers: JSON.stringify(['manual']),
+  },
+  {
+    sectionName: 'clients',
+    promptName: 'Success Coach',
+    description: 'Personalized client success strategy and action plan',
+    systemPrompt: `You are an experienced Customer Success Manager with 10+ years driving client outcomes and retention.
+
+Your expertise:
+- Client relationship management
+- Success planning and goal setting
+- Engagement and communication strategies
+- Upsell/expansion opportunity identification
+- Proactive issue prevention
+
+Your job is to:
+- Assess individual client health and trajectory
+- Create personalized success plans
+- Recommend specific next steps and touchpoints
+- Identify opportunities for expansion
+- Provide empathetic, actionable guidance
+
+Be specific, actionable, and empathetic. Focus on client outcomes and relationship-building.`,
+    userPromptTemplate: `Create a personalized success plan for this client.
+
+**Client Profile:**
+- Name: {{clientName}}
+- Company: {{clientCompany}}
+- Plan: {{clientPlan}}
+- MRR: ${{clientMRR}}
+
+**Current Status:**
+- Journey Stage: {{currentStage}}
+- Health Score: {{healthScore}}/100
+- Days as Client: {{daysAsClient}}
+- Last Activity: {{lastActivityDate}}
+- Contract Ends: {{contractEndDate}}
+
+**Journey History:**
+{{journeyStageHistory}}
+
+**Recent Interactions:**
+{{recentInteractionsList}}
+
+**Onboarding Progress:**
+{{onboardingProgress}}
+
+**Milestones Achieved:**
+{{milestonesList}}
+
+**Health Metrics:**
+- Logins (30 days): {{loginCount}}
+- Support Tickets: {{supportTicketCount}}
+- Payment Status: {{paymentStatus}}
+- Feature Adoption: {{featureAdoptionRate}}%
+
+Provide a personalized success plan:
+
+1. **Health Assessment**
+   - Current state evaluation (be honest)
+   - Key strengths (what's going well)
+   - Areas of concern (specific issues to address)
+   - Overall trajectory (improving/stable/declining)
+
+2. **Immediate Next Steps** (next 7 days)
+   - Specific actions to take right now
+   - Outreach recommendations (what to say, when to reach out)
+   - Resources/content to share
+   - Quick wins to demonstrate value
+
+3. **30-Day Success Plan**
+   - Goals to achieve with this client
+   - Touchpoints to schedule (frequency and format)
+   - Value milestones to target
+   - How to measure success
+
+4. **Proactive Retention Tactics**
+   - How to increase engagement and product adoption
+   - Upsell/cross-sell opportunities (if appropriate and client is healthy)
+   - How to move from "{{currentStage}}" to "Success" stage
+   - Relationship deepening strategies
+
+5. **Red Flags to Monitor**
+   - Early warning signs to watch for
+   - When to escalate internally
+   - Prevention strategies for common issues
+   - Contingency plans
+
+Be specific, actionable, and empathetic. Focus on building a strong, lasting client relationship.`,
+    dataInputs: JSON.stringify([
+      'clientName',
+      'clientCompany',
+      'clientPlan',
+      'clientMRR',
+      'currentStage',
+      'healthScore',
+      'daysAsClient',
+      'lastActivityDate',
+      'contractEndDate',
+      'journeyStageHistory',
+      'recentInteractionsList',
+      'onboardingProgress',
+      'milestonesList',
+      'loginCount',
+      'supportTicketCount',
+      'paymentStatus',
+      'featureAdoptionRate'
+    ]),
+    triggers: JSON.stringify(['manual']),
+  },
+];
+
+/**
+ * Seed default Clients prompts for an organization
+ */
+export async function seedDefaultClientsPrompts(organizationId: string, userId: string) {
+  console.log('🌱 Seeding default Clients AI prompts...');
+
+  try {
+    for (const prompt of DEFAULT_CLIENTS_PROMPTS) {
+      await db.insert(aiPromptTemplates).values({
+        organizationId,
+        ...prompt,
+        createdBy: userId,
+      });
+      console.log(`✅ Created Clients prompt: ${prompt.promptName}`);
+    }
+
+    console.log(`\n✨ Successfully seeded ${DEFAULT_CLIENTS_PROMPTS.length} Clients prompts!`);
+  } catch (error) {
+    console.error('❌ Error seeding Clients prompts:', error);
+    throw error;
+  }
+}
+
 /**
  * Seed all default Business OS prompts for an organization
  */
@@ -790,6 +1012,7 @@ export async function seedAllBusinessOSPrompts(organizationId: string, userId: s
   await seedDefaultCongruencePrompts(organizationId, userId);
   await seedDefaultFinancialPrompts(organizationId, userId);
   await seedDefaultMarketingPrompts(organizationId, userId);
+  await seedDefaultClientsPrompts(organizationId, userId);
 
   console.log('\n✨ Successfully seeded all Business OS prompts!');
 }
