@@ -947,6 +947,9 @@ export const organizationsRelationsExtended = relations(organizations, ({ many }
   onboardingTasks: many(onboardingTasks),
   clientMilestones: many(clientMilestones),
   churnRiskInterventions: many(churnRiskInterventions),
+  dmScripts: many(dmScripts),
+  scriptUsageLogs: many(scriptUsageLogs),
+  practiceSessions: many(practiceSessions),
 }));
 
 // Types
@@ -1312,3 +1315,177 @@ export type NewClientMilestone = typeof clientMilestones.$inferInsert;
 
 export type ChurnRiskIntervention = typeof churnRiskInterventions.$inferSelect;
 export type NewChurnRiskIntervention = typeof churnRiskInterventions.$inferInsert;
+
+// ============================================
+// DM SCRIPTS LIBRARY (Section 6)
+// ============================================
+
+// DM Scripts table (Sales scripts repository)
+export const dmScripts = sqliteTable('dm_scripts', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Creator
+
+  // Script Details
+  title: text('title', { length: 100 }).notNull(),
+  category: text('category', { length: 50 }).notNull(), // '6_boxes', 'dm_flow', 'upsell', 'churn_prevention', 'pre_call', 'post_call', 'check_in', 'closing'
+  content: text('content').notNull(), // Main script body
+  useCase: text('use_case'), // When to use this script
+  talkingPoints: text('talking_points'), // Key points to cover
+  expectedOutcomes: text('expected_outcomes'),
+  successTips: text('success_tips'),
+
+  // Organization
+  order: integer('order').notNull().default(0),
+  isDefaultTemplate: integer('is_default_template', { mode: 'boolean' }).notNull().default(false),
+
+  // Performance Tracking
+  timesUsed: integer('times_used').notNull().default(0),
+  successRate: text('success_rate').default('0.00'), // Stored as decimal string
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('dm_scripts_org_idx').on(table.organizationId),
+  categoryIdx: index('dm_scripts_category_idx').on(table.category),
+}));
+
+// Script Usage Logs table (Track script performance)
+export const scriptUsageLogs = sqliteTable('script_usage_logs', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  scriptId: text('script_id')
+    .notNull()
+    .references(() => dmScripts.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Who used the script
+
+  // Optional link to client (if used in real conversation)
+  clientId: text('client_id').references(() => clients.id, { onDelete: 'set null' }),
+
+  // Usage Details
+  usedAt: text('used_at').notNull().$defaultFn(() => new Date().toISOString()),
+  outcome: text('outcome', { length: 30 }).notNull(), // 'success', 'follow_up_needed', 'no_response', 'objection', 'closed', 'lost'
+
+  // Learnings
+  notes: text('notes'),
+  whatWorked: text('what_worked'),
+  whatDidntWork: text('what_didnt_work'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('script_usage_logs_org_idx').on(table.organizationId),
+  scriptIdx: index('script_usage_logs_script_idx').on(table.scriptId),
+  userIdx: index('script_usage_logs_user_idx').on(table.userId),
+}));
+
+// Practice Sessions table (AI role-play practice)
+export const practiceSessions = sqliteTable('practice_sessions', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Who practiced
+
+  scriptId: text('script_id')
+    .notNull()
+    .references(() => dmScripts.id, { onDelete: 'cascade' }),
+
+  // Session Config
+  personaType: text('persona_type', { length: 50 }).notNull(), // 'skeptical', 'budget_conscious', 'decision_maker', 'technical', 'friendly', 'difficult'
+  difficultyLevel: text('difficulty_level', { length: 20 }).notNull(), // 'easy', 'medium', 'hard'
+  clientContext: text('client_context'), // Optional context for realism
+
+  // Session Data
+  conversationHistory: text('conversation_history').notNull(), // JSON string of messages
+  durationSeconds: integer('duration_seconds'),
+
+  // AI Feedback
+  aiFeedbackScore: integer('ai_feedback_score'), // 1-10
+  aiFeedbackText: text('ai_feedback_text'),
+  whatWentWell: text('what_went_well'),
+  areasToImprove: text('areas_to_improve'),
+  missedOpportunities: text('missed_opportunities'),
+
+  practiceDate: text('practice_date').notNull().$defaultFn(() => new Date().toISOString()),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('practice_sessions_org_idx').on(table.organizationId),
+  userIdx: index('practice_sessions_user_idx').on(table.userId),
+  scriptIdx: index('practice_sessions_script_idx').on(table.scriptId),
+}));
+
+// Relations for DM Scripts Library
+export const dmScriptsRelations = relations(dmScripts, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [dmScripts.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [dmScripts.userId],
+    references: [users.id],
+  }),
+  usageLogs: many(scriptUsageLogs),
+  practiceSessions: many(practiceSessions),
+}));
+
+export const scriptUsageLogsRelations = relations(scriptUsageLogs, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [scriptUsageLogs.organizationId],
+    references: [organizations.id],
+  }),
+  script: one(dmScripts, {
+    fields: [scriptUsageLogs.scriptId],
+    references: [dmScripts.id],
+  }),
+  user: one(users, {
+    fields: [scriptUsageLogs.userId],
+    references: [users.id],
+  }),
+  client: one(clients, {
+    fields: [scriptUsageLogs.clientId],
+    references: [clients.id],
+  }),
+}));
+
+export const practiceSessionsRelations = relations(practiceSessions, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [practiceSessions.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [practiceSessions.userId],
+    references: [users.id],
+  }),
+  script: one(dmScripts, {
+    fields: [practiceSessions.scriptId],
+    references: [dmScripts.id],
+  }),
+}));
+
+// Types for DM Scripts Library
+export type DmScript = typeof dmScripts.$inferSelect;
+export type NewDmScript = typeof dmScripts.$inferInsert;
+
+export type ScriptUsageLog = typeof scriptUsageLogs.$inferSelect;
+export type NewScriptUsageLog = typeof scriptUsageLogs.$inferInsert;
+
+export type PracticeSession = typeof practiceSessions.$inferSelect;
+export type NewPracticeSession = typeof practiceSessions.$inferInsert;

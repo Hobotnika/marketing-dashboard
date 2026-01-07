@@ -1002,6 +1002,169 @@ export async function seedDefaultClientsPrompts(organizationId: string, userId: 
   }
 }
 
+// ============================================
+// DM SCRIPTS LIBRARY - AI PROMPTS
+// ============================================
+
+export const DEFAULT_SCRIPTS_PROMPTS = [
+  {
+    sectionName: 'scripts',
+    promptName: 'Script Performance Analyzer',
+    description: 'Analyze script usage data and identify improvement opportunities',
+    systemPrompt: `You are a sales trainer and script optimization expert.
+
+Your expertise:
+- Analyzing script performance data
+- Identifying what makes scripts successful
+- Spotting patterns in failed conversations
+- Recommending script improvements
+- Training sales teams on effective messaging
+
+Be data-driven, specific, and actionable.`,
+    userPromptTemplate: `Analyze the performance of our sales scripts.
+
+**All Scripts Performance:**
+{{allScriptsData}}
+
+**Top Performing Scripts:**
+{{topPerformingScripts}}
+
+**Underperforming Scripts:**
+{{underperformingScripts}}
+
+**Recent Usage Logs (Last 30 days):**
+{{recentUsageLogs}}
+
+Provide:
+
+1. **Overall Assessment**
+   - What's working well across our scripts?
+   - What patterns do you see in successful vs. unsuccessful scripts?
+   - Are we using the right mix of script types?
+
+2. **Top Performers Analysis**
+   - Why are these scripts successful?
+   - What common elements do they share?
+   - How can we replicate their success?
+
+3. **Improvement Recommendations for Underperformers**
+   - Specific script-by-script suggestions
+   - What's missing or ineffective?
+   - How to rewrite or restructure them?
+
+4. **Team Training Insights**
+   - Which scripts need more practice?
+   - Common mistakes in script execution (from usage logs)
+   - Role-play scenarios to practice
+
+5. **Content Gaps**
+   - What script types are we missing?
+   - New scenarios we should create scripts for
+   - Objections we're not handling well
+
+Be specific with script names and provide actionable recommendations.`,
+    dataInputs: JSON.stringify([
+      'allScriptsData',
+      'topPerformingScripts',
+      'underperformingScripts',
+      'recentUsageLogs'
+    ]),
+    triggers: JSON.stringify(['manual']),
+  },
+  {
+    sectionName: 'scripts',
+    promptName: 'Practice Coach',
+    description: 'Review practice sessions and provide personalized coaching',
+    systemPrompt: `You are an experienced sales coach helping reps improve through practice session analysis.
+
+Your expertise:
+- Analyzing practice conversation transcripts
+- Identifying improvement areas
+- Providing specific, actionable coaching
+- Tracking progress over time
+- Building confidence through constructive feedback
+
+Be supportive, specific, and focused on skill development.`,
+    userPromptTemplate: `Review this sales rep's practice history and provide personalized coaching.
+
+**Rep Practice History (Last 10 sessions):**
+{{practiceHistory}}
+
+**Recent Scores:**
+{{recentScores}}
+
+**Improvement Trend:**
+{{improvementTrend}}
+
+**Most Practiced Scripts:**
+{{mostPracticedScripts}}
+
+**Common Feedback Themes:**
+{{commonFeedbackThemes}}
+
+Provide personalized coaching:
+
+1. **Progress Assessment**
+   - How is the rep improving over time?
+   - What skills have gotten stronger?
+   - What areas are still struggling?
+
+2. **Strengths to Leverage**
+   - What is this rep doing well consistently?
+   - Which script types do they excel at?
+   - Natural talents to build on
+
+3. **Priority Development Areas**
+   - Top 3 skills to focus on improving
+   - Why these are holding them back
+   - Specific exercises to practice
+
+4. **Script-Specific Coaching**
+   - Which scripts need more practice?
+   - Which scripts are they ready to use live?
+   - Confidence-building recommendations
+
+5. **30-Day Practice Plan**
+   - Daily/weekly practice goals
+   - Specific personas and difficulty levels to focus on
+   - Milestones to achieve
+   - How to measure progress
+
+Be encouraging, specific, and create a clear development path.`,
+    dataInputs: JSON.stringify([
+      'practiceHistory',
+      'recentScores',
+      'improvementTrend',
+      'mostPracticedScripts',
+      'commonFeedbackThemes'
+    ]),
+    triggers: JSON.stringify(['manual']),
+  },
+];
+
+/**
+ * Seed default Scripts prompts for an organization
+ */
+export async function seedDefaultScriptsPrompts(organizationId: string, userId: string) {
+  console.log('🌱 Seeding default Scripts AI prompts...');
+
+  try {
+    for (const prompt of DEFAULT_SCRIPTS_PROMPTS) {
+      await db.insert(aiPromptTemplates).values({
+        organizationId,
+        ...prompt,
+        createdBy: userId,
+      });
+      console.log(`✅ Created Scripts prompt: ${prompt.promptName}`);
+    }
+
+    console.log(`\n✨ Successfully seeded ${DEFAULT_SCRIPTS_PROMPTS.length} Scripts prompts!`);
+  } catch (error) {
+    console.error('❌ Error seeding Scripts prompts:', error);
+    throw error;
+  }
+}
+
 /**
  * Seed all default Business OS prompts for an organization
  */
@@ -1013,6 +1176,7 @@ export async function seedAllBusinessOSPrompts(organizationId: string, userId: s
   await seedDefaultFinancialPrompts(organizationId, userId);
   await seedDefaultMarketingPrompts(organizationId, userId);
   await seedDefaultClientsPrompts(organizationId, userId);
+  await seedDefaultScriptsPrompts(organizationId, userId);
 
   console.log('\n✨ Successfully seeded all Business OS prompts!');
 }
