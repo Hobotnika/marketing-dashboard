@@ -79,7 +79,7 @@ export const aiPrompts = sqliteTable('ai_prompts', {
 
   name: text('name').notNull(),
   description: text('description'),
-  category: text('category', { enum: ['meta_ads', 'google_ads'] }).notNull(),
+  category: text('category', { enum: ['meta_ads', 'google_ads', 'planning'] }).notNull(),
   promptType: text('prompt_type', { enum: ['default', 'local_business', 'ecommerce', 'saas', 'custom'] }).notNull().default('custom'),
 
   promptText: text('prompt_text').notNull(),
@@ -950,6 +950,13 @@ export const organizationsRelationsExtended = relations(organizations, ({ many }
   dmScripts: many(dmScripts),
   scriptUsageLogs: many(scriptUsageLogs),
   practiceSessions: many(practiceSessions),
+  monthlyActivities: many(monthlyActivities),
+  quarterlyOKRs: many(quarterlyOKRs),
+  keyResults: many(keyResults),
+  yearlyVisions: many(yearlyVisions),
+  visionMilestones: many(visionMilestones),
+  weeklyReviews: many(weeklyReviews),
+  silentTimeBlocks: many(silentTimeBlocks),
 }));
 
 // Types
@@ -1489,3 +1496,338 @@ export type NewScriptUsageLog = typeof scriptUsageLogs.$inferInsert;
 
 export type PracticeSession = typeof practiceSessions.$inferSelect;
 export type NewPracticeSession = typeof practiceSessions.$inferInsert;
+
+// ============================================
+// PLANNING SYSTEM (Section 7)
+// ============================================
+
+// Monthly Activities table (User-private planning)
+export const monthlyActivities = sqliteTable('monthly_activities', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant + User-private
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // User-private planning
+
+  // Activity Details
+  date: text('date').notNull(), // YYYY-MM-DD format
+  title: text('title', { length: 100 }).notNull(),
+  activityType: text('activity_type', { length: 20 }).notNull(), // 'income', 'affiliate', 'other'
+  category: text('category', { length: 50 }), // 'content', 'call', 'meeting', 'admin', 'learning'
+  timeSlot: text('time_slot', { length: 20 }), // 'morning', 'afternoon', 'evening', or specific time
+  durationMinutes: integer('duration_minutes'),
+  description: text('description'),
+
+  // Status
+  isCompleted: integer('is_completed', { mode: 'boolean' }).notNull().default(false),
+  completedAt: text('completed_at'),
+  actualOutcome: text('actual_outcome'),
+
+  // Optional Links
+  clientId: text('client_id').references(() => clients.id, { onDelete: 'set null' }),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('monthly_activities_org_idx').on(table.organizationId),
+  userIdx: index('monthly_activities_user_idx').on(table.userId),
+  dateIdx: index('monthly_activities_date_idx').on(table.date),
+  userDateIdx: index('monthly_activities_user_date_idx').on(table.userId, table.date),
+}));
+
+// Quarterly OKRs table (Company-level goals)
+export const quarterlyOKRs = sqliteTable('quarterly_okrs', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant (Company-level)
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Creator
+
+  ownerId: text('owner_id')
+    .references(() => users.id, { onDelete: 'set null' }), // Who's responsible
+
+  // OKR Details
+  quarter: text('quarter', { length: 2 }).notNull(), // 'Q1', 'Q2', 'Q3', 'Q4'
+  year: integer('year').notNull(), // 2025, 2026
+  objectiveTitle: text('objective_title', { length: 200 }).notNull(),
+  objectiveDescription: text('objective_description'),
+  status: text('status', { length: 20 }).notNull().default('active'), // 'draft', 'active', 'completed', 'abandoned'
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('quarterly_okrs_org_idx').on(table.organizationId),
+  quarterYearIdx: index('quarterly_okrs_quarter_year_idx').on(table.organizationId, table.quarter, table.year),
+}));
+
+// Key Results table (Measurable outcomes for OKRs)
+export const keyResults = sqliteTable('key_results', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  okrId: text('okr_id')
+    .notNull()
+    .references(() => quarterlyOKRs.id, { onDelete: 'cascade' }),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Key Result Details
+  description: text('description', { length: 200 }).notNull(),
+  metricType: text('metric_type', { length: 50 }), // 'revenue', 'clients', 'conversions', 'custom'
+  targetValue: text('target_value').notNull(), // Stored as text for flexibility
+  currentValue: text('current_value').notNull().default('0'), // Stored as text
+  unit: text('unit', { length: 20 }), // '$', '%', '#'
+
+  // Auto-calculated
+  progressPercentage: integer('progress_percentage').notNull().default(0), // 0-100
+
+  lastUpdated: text('last_updated').notNull().$defaultFn(() => new Date().toISOString()),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('key_results_org_idx').on(table.organizationId),
+  okrIdx: index('key_results_okr_idx').on(table.okrId),
+}));
+
+// Yearly Visions table (Company-level vision)
+export const yearlyVisions = sqliteTable('yearly_visions', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant (Company-level vision)
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Creator
+
+  // Vision Details
+  year: integer('year').notNull(), // 2025, 2026
+  themeFocus: text('theme_focus'), // "Year of Scale", etc.
+  annualRevenueTarget: text('annual_revenue_target'), // Stored as text for flexibility
+  annualProfitTarget: text('annual_profit_target'), // Stored as text
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('yearly_visions_org_idx').on(table.organizationId),
+  yearIdx: index('yearly_visions_year_idx').on(table.organizationId, table.year),
+}));
+
+// Vision Milestones table
+export const visionMilestones = sqliteTable('vision_milestones', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  visionId: text('vision_id')
+    .notNull()
+    .references(() => yearlyVisions.id, { onDelete: 'cascade' }),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Milestone Details
+  title: text('title', { length: 100 }).notNull(),
+  targetDate: text('target_date').notNull(), // ISO string
+  category: text('category', { length: 50 }), // 'revenue', 'product', 'team', 'personal', 'other'
+  description: text('description'),
+
+  // Status
+  isAchieved: integer('is_achieved', { mode: 'boolean' }).notNull().default(false),
+  achievedDate: text('achieved_date'),
+  notes: text('notes'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('vision_milestones_org_idx').on(table.organizationId),
+  visionIdx: index('vision_milestones_vision_idx').on(table.visionId),
+}));
+
+// Weekly Reviews table (User-private reviews)
+export const weeklyReviews = sqliteTable('weekly_reviews', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant + User-private
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // User-private reviews
+
+  // Week Details
+  weekStartDate: text('week_start_date').notNull(), // Monday of the week (YYYY-MM-DD)
+  weekEndDate: text('week_end_date').notNull(), // Sunday of the week (YYYY-MM-DD)
+
+  // Review Content
+  wins: text('wins'),
+  learnings: text('learnings'),
+  challenges: text('challenges'),
+  nextWeekPriorities: text('next_week_priorities'),
+  gratitude: text('gratitude'),
+
+  // Auto-populated Numbers
+  weeklyRevenue: text('weekly_revenue'), // Stored as text
+  newClients: integer('new_clients'),
+  contentPublished: integer('content_published'),
+  scriptsPracticed: integer('scripts_practiced'),
+
+  completedAt: text('completed_at').notNull().$defaultFn(() => new Date().toISOString()),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('weekly_reviews_org_idx').on(table.organizationId),
+  userIdx: index('weekly_reviews_user_idx').on(table.userId),
+  weekStartIdx: index('weekly_reviews_week_start_idx').on(table.userId, table.weekStartDate),
+}));
+
+// Silent Time Blocks table (User-private tracking)
+export const silentTimeBlocks = sqliteTable('silent_time_blocks', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant + User-private
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // User-private tracking
+
+  // Block Details
+  date: text('date').notNull(), // YYYY-MM-DD
+  startTime: text('start_time').notNull(), // ISO string
+  durationMinutes: integer('duration_minutes').notNull(), // 90, 120, 180
+  activityFocus: text('activity_focus', { length: 200 }),
+  phoneWasSilent: integer('phone_was_silent', { mode: 'boolean' }).notNull().default(true),
+  qualityRating: integer('quality_rating'), // 1-5 stars
+  notes: text('notes'),
+  accomplishments: text('accomplishments'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('silent_time_blocks_org_idx').on(table.organizationId),
+  userIdx: index('silent_time_blocks_user_idx').on(table.userId),
+  dateIdx: index('silent_time_blocks_date_idx').on(table.userId, table.date),
+}));
+
+// Relations for Planning System
+export const monthlyActivitiesRelations = relations(monthlyActivities, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [monthlyActivities.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [monthlyActivities.userId],
+    references: [users.id],
+  }),
+  client: one(clients, {
+    fields: [monthlyActivities.clientId],
+    references: [clients.id],
+  }),
+}));
+
+export const quarterlyOKRsRelations = relations(quarterlyOKRs, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [quarterlyOKRs.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [quarterlyOKRs.userId],
+    references: [users.id],
+  }),
+  owner: one(users, {
+    fields: [quarterlyOKRs.ownerId],
+    references: [users.id],
+  }),
+  keyResults: many(keyResults),
+}));
+
+export const keyResultsRelations = relations(keyResults, ({ one }) => ({
+  okr: one(quarterlyOKRs, {
+    fields: [keyResults.okrId],
+    references: [quarterlyOKRs.id],
+  }),
+  organization: one(organizations, {
+    fields: [keyResults.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const yearlyVisionsRelations = relations(yearlyVisions, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [yearlyVisions.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [yearlyVisions.userId],
+    references: [users.id],
+  }),
+  milestones: many(visionMilestones),
+}));
+
+export const visionMilestonesRelations = relations(visionMilestones, ({ one }) => ({
+  vision: one(yearlyVisions, {
+    fields: [visionMilestones.visionId],
+    references: [yearlyVisions.id],
+  }),
+  organization: one(organizations, {
+    fields: [visionMilestones.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const weeklyReviewsRelations = relations(weeklyReviews, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [weeklyReviews.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [weeklyReviews.userId],
+    references: [users.id],
+  }),
+}));
+
+export const silentTimeBlocksRelations = relations(silentTimeBlocks, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [silentTimeBlocks.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [silentTimeBlocks.userId],
+    references: [users.id],
+  }),
+}));
+
+// Types for Planning System
+export type MonthlyActivity = typeof monthlyActivities.$inferSelect;
+export type NewMonthlyActivity = typeof monthlyActivities.$inferInsert;
+
+export type QuarterlyOKR = typeof quarterlyOKRs.$inferSelect;
+export type NewQuarterlyOKR = typeof quarterlyOKRs.$inferInsert;
+
+export type KeyResult = typeof keyResults.$inferSelect;
+export type NewKeyResult = typeof keyResults.$inferInsert;
+
+export type YearlyVision = typeof yearlyVisions.$inferSelect;
+export type NewYearlyVision = typeof yearlyVisions.$inferInsert;
+
+export type VisionMilestone = typeof visionMilestones.$inferSelect;
+export type NewVisionMilestone = typeof visionMilestones.$inferInsert;
+
+export type WeeklyReview = typeof weeklyReviews.$inferSelect;
+export type NewWeeklyReview = typeof weeklyReviews.$inferInsert;
+
+export type SilentTimeBlock = typeof silentTimeBlocks.$inferSelect;
+export type NewSilentTimeBlock = typeof silentTimeBlocks.$inferInsert;
