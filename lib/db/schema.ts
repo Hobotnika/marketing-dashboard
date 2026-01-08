@@ -961,6 +961,12 @@ export const organizationsRelationsExtended = relations(organizations, ({ many }
   offers: many(offers),
   offerVersions: many(offerVersions),
   offerActivities: many(offerActivities),
+  executionLogs: many(executionLogs),
+  newConnections: many(newConnections),
+  connectionGoals: many(connectionGoals),
+  contentExecutionLogs: many(contentExecutionLogs),
+  executionStreaks: many(executionStreaks),
+  loomVideos: many(loomVideos),
 }));
 
 // Types
@@ -2063,3 +2069,303 @@ export type NewOfferVersion = typeof offerVersions.$inferInsert;
 
 export type OfferActivity = typeof offerActivities.$inferSelect;
 export type NewOfferActivity = typeof offerActivities.$inferInsert;
+
+// ============================================
+// EXECUTION TRACKING (Section 9)
+// ============================================
+
+// Execution Logs table (User-private tracking of completed activities)
+export const executionLogs = sqliteTable('execution_logs', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant (USER-PRIVATE)
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // User-private tracking
+
+  // Execution Details
+  date: text('date').notNull(), // ISO date string (YYYY-MM-DD)
+  activityTitle: text('activity_title', { length: 200 }).notNull(),
+  activityType: text('activity_type', { length: 20 }), // 'income', 'affiliate', 'other'
+
+  // Planning Link
+  plannedActivityId: text('planned_activity_id')
+    .references(() => monthlyActivities.id, { onDelete: 'set null' }), // Link to planned activity
+  wasPlanned: integer('was_planned', { mode: 'boolean' }).notNull().default(false),
+
+  // Time Tracking
+  plannedDurationMinutes: integer('planned_duration_minutes'),
+  actualDurationMinutes: integer('actual_duration_minutes'),
+
+  // Details
+  notes: text('notes'),
+  outcome: text('outcome'),
+
+  completedAt: text('completed_at').notNull().$defaultFn(() => new Date().toISOString()),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  userDateIdx: index('execution_logs_user_date_idx').on(table.userId, table.date),
+  plannedIdx: index('execution_logs_planned_idx').on(table.plannedActivityId),
+  userIdx: index('execution_logs_user_idx').on(table.userId),
+}));
+
+// New Connections table (Connection building tracker)
+export const newConnections = sqliteTable('new_connections', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant (USER-PRIVATE)
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // User-private tracking
+
+  // Connection Details
+  date: text('date').notNull().$defaultFn(() => new Date().toISOString().split('T')[0]),
+  connectionName: text('connection_name', { length: 100 }).notNull(),
+  connectionType: text('connection_type', { length: 50 }).notNull(), // 'linkedin', 'instagram', 'email', 'phone', 'in_person', 'other'
+  platform: text('platform', { length: 50 }), // Specific platform/channel
+
+  // Connection Quality
+  quality: text('quality', { length: 50 }), // 'cold_outreach', 'warm_intro', 'referral', 'existing_network'
+  context: text('context'), // How/where you connected
+
+  // Follow-up
+  followUpNeeded: integer('follow_up_needed', { mode: 'boolean' }).notNull().default(false),
+  followUpDate: text('follow_up_date'), // ISO date string
+  followUpCompleted: integer('follow_up_completed', { mode: 'boolean' }).notNull().default(false),
+
+  // Link to Client
+  clientId: text('client_id').references(() => clients.id, { onDelete: 'set null' }), // If becomes a client
+
+  notes: text('notes'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  userDateIdx: index('new_connections_user_date_idx').on(table.userId, table.date),
+  userIdx: index('new_connections_user_idx').on(table.userId),
+}));
+
+// Connection Goals table (Daily/weekly/monthly targets)
+export const connectionGoals = sqliteTable('connection_goals', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant (USER-PRIVATE)
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // User-private goals
+
+  // Goals
+  dailyGoal: integer('daily_goal').notNull().default(5),
+  weeklyGoal: integer('weekly_goal').notNull().default(25),
+  monthlyGoal: integer('monthly_goal').notNull().default(100),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  userIdx: uniqueIndex('connection_goals_user_idx').on(table.userId),
+}));
+
+// Content Execution Logs table (Content publishing tracker)
+export const contentExecutionLogs = sqliteTable('content_execution_logs', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant (USER-PRIVATE)
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // User-private tracking
+
+  // Content Details
+  date: text('date').notNull().$defaultFn(() => new Date().toISOString().split('T')[0]),
+  platform: text('platform', { length: 50 }).notNull(), // 'linkedin', 'instagram', 'facebook', 'email', 'blog', 'youtube', 'twitter', 'tiktok'
+  contentType: text('content_type', { length: 50 }), // 'post', 'story', 'reel', 'article', 'video', 'email', 'tweet'
+  title: text('title', { length: 200 }).notNull(),
+
+  // Planning Link
+  plannedContentId: text('planned_content_id')
+    .references(() => contentCalendar.id, { onDelete: 'set null' }), // Link to content calendar
+  wasPlanned: integer('was_planned', { mode: 'boolean' }).notNull().default(false),
+
+  // Status
+  status: text('status', { length: 20 }).notNull().default('published'), // 'drafted', 'scheduled', 'published', 'failed'
+  publishedUrl: text('published_url', { length: 500 }),
+
+  // Checklist Completion (stored as JSON)
+  checklistItems: text('checklist_items'), // JSON array of checklist with completion status
+
+  // Performance
+  performanceNotes: text('performance_notes'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  userDateIdx: index('content_execution_logs_user_date_idx').on(table.userId, table.date),
+  userIdx: index('content_execution_logs_user_idx').on(table.userId),
+}));
+
+// Execution Streaks table (Streak tracking)
+export const executionStreaks = sqliteTable('execution_streaks', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant (USER-PRIVATE)
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // User-private streaks
+
+  // Streak Details
+  streakType: text('streak_type', { length: 50 }).notNull(), // 'daily_execution', 'connections', 'content', 'planning'
+  currentStreak: integer('current_streak').notNull().default(0),
+  longestStreak: integer('longest_streak').notNull().default(0),
+  lastActivityDate: text('last_activity_date'), // ISO date string
+  lastBrokenDate: text('last_broken_date'), // ISO date string
+
+  // Goal
+  streakGoal: integer('streak_goal').notNull().default(30), // Target days
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  userTypeIdx: uniqueIndex('execution_streaks_user_type_idx').on(table.userId, table.streakType),
+}));
+
+// LOOM Videos table (Video reference library)
+export const loomVideos = sqliteTable('loom_videos', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Creator
+
+  // Video Details
+  title: text('title', { length: 200 }).notNull(),
+  category: text('category', { length: 50 }), // 'planning', 'marketing', 'scripts', 'offers', 'execution', 'other'
+  loomUrl: text('loom_url', { length: 500 }).notNull(),
+  description: text('description'),
+  durationSeconds: integer('duration_seconds'),
+
+  // Usage
+  viewCount: integer('view_count').notNull().default(0),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  orgIdx: index('loom_videos_org_idx').on(table.organizationId),
+}));
+
+// Relations for Execution Tracking
+export const executionLogsRelations = relations(executionLogs, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [executionLogs.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [executionLogs.userId],
+    references: [users.id],
+  }),
+  plannedActivity: one(monthlyActivities, {
+    fields: [executionLogs.plannedActivityId],
+    references: [monthlyActivities.id],
+  }),
+}));
+
+export const newConnectionsRelations = relations(newConnections, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [newConnections.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [newConnections.userId],
+    references: [users.id],
+  }),
+  client: one(clients, {
+    fields: [newConnections.clientId],
+    references: [clients.id],
+  }),
+}));
+
+export const connectionGoalsRelations = relations(connectionGoals, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [connectionGoals.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [connectionGoals.userId],
+    references: [users.id],
+  }),
+}));
+
+export const contentExecutionLogsRelations = relations(contentExecutionLogs, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [contentExecutionLogs.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [contentExecutionLogs.userId],
+    references: [users.id],
+  }),
+  plannedContent: one(contentCalendar, {
+    fields: [contentExecutionLogs.plannedContentId],
+    references: [contentCalendar.id],
+  }),
+}));
+
+export const executionStreaksRelations = relations(executionStreaks, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [executionStreaks.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [executionStreaks.userId],
+    references: [users.id],
+  }),
+}));
+
+export const loomVideosRelations = relations(loomVideos, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [loomVideos.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [loomVideos.userId],
+    references: [users.id],
+  }),
+}));
+
+// Types for Execution Tracking
+export type ExecutionLog = typeof executionLogs.$inferSelect;
+export type NewExecutionLog = typeof executionLogs.$inferInsert;
+
+export type NewConnection = typeof newConnections.$inferSelect;
+export type NewNewConnection = typeof newConnections.$inferInsert;
+
+export type ConnectionGoal = typeof connectionGoals.$inferSelect;
+export type NewConnectionGoal = typeof connectionGoals.$inferInsert;
+
+export type ContentExecutionLog = typeof contentExecutionLogs.$inferSelect;
+export type NewContentExecutionLog = typeof contentExecutionLogs.$inferInsert;
+
+export type ExecutionStreak = typeof executionStreaks.$inferSelect;
+export type NewExecutionStreak = typeof executionStreaks.$inferInsert;
+
+export type LoomVideo = typeof loomVideos.$inferSelect;
+export type NewLoomVideo = typeof loomVideos.$inferInsert;

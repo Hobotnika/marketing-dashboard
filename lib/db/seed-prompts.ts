@@ -1406,6 +1406,122 @@ export async function seedDefaultOffersPrompts(organizationId: string, userId: s
   }
 }
 
+// ============================================
+// EXECUTION TRACKING - AI PROMPTS
+// ============================================
+
+export const DEFAULT_EXECUTION_PROMPTS = [
+  {
+    sectionName: 'execution',
+    promptName: 'Execution Accountability Coach',
+    description: 'Analyze execution patterns and provide accountability coaching',
+    systemPrompt: `You are an accountability coach helping improve execution consistency.
+
+Your expertise:
+- Identifying execution gaps between planning and doing
+- Recognizing patterns in what gets done vs skipped
+- Providing constructive, actionable feedback
+- Helping build sustainable execution habits
+
+Be direct, data-driven, and focused on improvement.`,
+    userPromptTemplate: `Analyze my execution data and provide accountability coaching:
+
+**Execution Logs (Last 7 days):**
+{{executionLogs}}
+
+**Planned Activities (Last 7 days):**
+{{plannedActivities}}
+
+**Completion Metrics:**
+- Planned activities: {{plannedCount}}
+- Executed activities: {{executedCount}}
+- Completion rate: {{completionRate}}%
+- Unplanned activities: {{unplannedCount}}
+
+**Activity Type Breakdown:**
+- Income activities: {{incomeCompletion}}% completion
+- Affiliate activities: {{affiliateCompletion}}% completion
+- Other activities: {{otherCompletion}}% completion
+
+**Connection Tracking:**
+- This week: {{weekConnections}} connections
+- Weekly goal: {{weeklyConnectionGoal}}
+- Progress: {{connectionProgress}}%
+
+Provide:
+
+1. **Execution Health Assessment** (1-10 score)
+   - Overall execution score
+   - What's working well
+   - Key concerns
+
+2. **Gap Analysis**
+   - Where planning breaks down
+   - Activity types being consistently skipped
+   - Patterns in missed activities
+
+3. **Pattern Recognition**
+   - Best execution days
+   - Consistent bottlenecks
+   - Time estimation accuracy
+
+4. **Improvement Recommendations**
+   - Top 3 actions to improve completion rate
+   - Planning adjustments needed
+   - Specific accountability strategies
+
+5. **Connection Building Assessment**
+   - Connection cadence effectiveness
+   - Quality vs quantity balance
+   - Follow-up consistency
+
+6. **Next Week Focus**
+   - Priority execution goals
+   - One habit to build
+   - One bottleneck to eliminate
+
+Be specific, constructive, and actionable.`,
+    dataInputs: JSON.stringify([
+      'executionLogs',
+      'plannedActivities',
+      'plannedCount',
+      'executedCount',
+      'completionRate',
+      'unplannedCount',
+      'incomeCompletion',
+      'affiliateCompletion',
+      'otherCompletion',
+      'weekConnections',
+      'weeklyConnectionGoal',
+      'connectionProgress'
+    ]),
+    triggers: JSON.stringify(['manual']),
+  },
+];
+
+/**
+ * Seed default Execution prompts for an organization
+ */
+export async function seedDefaultExecutionPrompts(organizationId: string, userId: string) {
+  console.log('🌱 Seeding default Execution AI prompts...');
+
+  try {
+    for (const prompt of DEFAULT_EXECUTION_PROMPTS) {
+      await db.insert(aiPromptTemplates).values({
+        organizationId,
+        ...prompt,
+        createdBy: userId,
+      });
+      console.log(`✅ Created Execution prompt: ${prompt.promptName}`);
+    }
+
+    console.log(`\n✨ Successfully seeded ${DEFAULT_EXECUTION_PROMPTS.length} Execution prompts!`);
+  } catch (error) {
+    console.error('❌ Error seeding Execution prompts:', error);
+    throw error;
+  }
+}
+
 /**
  * Seed all default Business OS prompts for an organization
  */
@@ -1419,6 +1535,7 @@ export async function seedAllBusinessOSPrompts(organizationId: string, userId: s
   await seedDefaultClientsPrompts(organizationId, userId);
   await seedDefaultScriptsPrompts(organizationId, userId);
   await seedDefaultOffersPrompts(organizationId, userId);
+  await seedDefaultExecutionPrompts(organizationId, userId);
 
   console.log('\n✨ Successfully seeded all Business OS prompts!');
 }
