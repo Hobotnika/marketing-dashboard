@@ -1303,6 +1303,109 @@ export async function seedDefaultScriptsPrompts(organizationId: string, userId: 
   }
 }
 
+// ============================================
+// OFFERS SYSTEM - AI PROMPTS
+// ============================================
+
+export const DEFAULT_OFFERS_PROMPTS = [
+  {
+    sectionName: 'offers',
+    promptName: 'Offer Performance Analyzer',
+    description: 'Analyze offer acceptance patterns and identify improvement opportunities',
+    systemPrompt: `You are a sales performance analyst reviewing offer acceptance patterns.
+
+Your expertise:
+- Identifying what makes offers successful
+- Spotting patterns in accepted vs. declined offers
+- Pricing strategy optimization
+- Template performance analysis
+- Conversion rate improvement
+
+Be data-driven, specific, and actionable.`,
+    userPromptTemplate: `Analyze my offer performance data:
+
+**All Offers:**
+{{offersList}}
+
+**Template Performance:**
+{{templatePerformance}}
+
+**Acceptance Metrics:**
+- Overall acceptance rate: {{overallAcceptanceRate}}%
+- Average time to decision: {{avgDecisionTime}} days
+- View-to-accept rate: {{viewToAcceptRate}}%
+
+**Price Range Performance:**
+{{priceRangePerformance}}
+
+Provide:
+
+1. **What's Working**
+   - Which templates have highest acceptance?
+   - Which price ranges convert best?
+   - What patterns do accepted offers share?
+
+2. **What's Not Working**
+   - Which offers are getting declined?
+   - Common rejection reasons
+   - Templates underperforming
+
+3. **Pricing Insights**
+   - Optimal price ranges for your offerings
+   - Where are you leaving money on the table?
+   - Where are you pricing too high?
+
+4. **Template Recommendations**
+   - Which templates to use more often
+   - Which templates need revision
+   - New template ideas based on wins
+
+5. **Conversion Optimization**
+   - How to improve acceptance rates
+   - A/B testing suggestions
+   - Follow-up timing recommendations
+
+6. **Revenue Opportunities**
+   - Upsell opportunities
+   - Package bundling ideas
+   - Pricing strategy adjustments
+
+Be specific with numbers and actionable recommendations.`,
+    dataInputs: JSON.stringify([
+      'offersList',
+      'templatePerformance',
+      'overallAcceptanceRate',
+      'avgDecisionTime',
+      'viewToAcceptRate',
+      'priceRangePerformance'
+    ]),
+    triggers: JSON.stringify(['manual']),
+  },
+];
+
+/**
+ * Seed default Offers prompts for an organization
+ */
+export async function seedDefaultOffersPrompts(organizationId: string, userId: string) {
+  console.log('🌱 Seeding default Offers AI prompts...');
+
+  try {
+    for (const prompt of DEFAULT_OFFERS_PROMPTS) {
+      await db.insert(aiPromptTemplates).values({
+        organizationId,
+        ...prompt,
+        createdBy: userId,
+      });
+      console.log(`✅ Created Offers prompt: ${prompt.promptName}`);
+    }
+
+    console.log(`\n✨ Successfully seeded ${DEFAULT_OFFERS_PROMPTS.length} Offers prompts!`);
+  } catch (error) {
+    console.error('❌ Error seeding Offers prompts:', error);
+    throw error;
+  }
+}
+
 /**
  * Seed all default Business OS prompts for an organization
  */
@@ -1315,6 +1418,7 @@ export async function seedAllBusinessOSPrompts(organizationId: string, userId: s
   await seedDefaultMarketingPrompts(organizationId, userId);
   await seedDefaultClientsPrompts(organizationId, userId);
   await seedDefaultScriptsPrompts(organizationId, userId);
+  await seedDefaultOffersPrompts(organizationId, userId);
 
   console.log('\n✨ Successfully seeded all Business OS prompts!');
 }

@@ -957,6 +957,10 @@ export const organizationsRelationsExtended = relations(organizations, ({ many }
   visionMilestones: many(visionMilestones),
   weeklyReviews: many(weeklyReviews),
   silentTimeBlocks: many(silentTimeBlocks),
+  offerTemplates: many(offerTemplates),
+  offers: many(offers),
+  offerVersions: many(offerVersions),
+  offerActivities: many(offerActivities),
 }));
 
 // Types
@@ -1831,3 +1835,231 @@ export type NewWeeklyReview = typeof weeklyReviews.$inferInsert;
 
 export type SilentTimeBlock = typeof silentTimeBlocks.$inferSelect;
 export type NewSilentTimeBlock = typeof silentTimeBlocks.$inferInsert;
+
+// ============================================
+// OFFERS SYSTEM (Section 8)
+// ============================================
+
+// Offer Templates table (Reusable offer structures)
+export const offerTemplates = sqliteTable('offer_templates', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Creator
+
+  // Template Details
+  name: text('name', { length: 100 }).notNull(),
+  category: text('category', { length: 50 }).notNull(), // 'service', 'product', 'package', 'consulting', 'retainer', 'custom'
+  description: text('description'),
+  structureType: text('structure_type', { length: 20 }).notNull(), // 'single_tier', 'tiered', 'custom'
+
+  // Template Content (stored as JSON)
+  sections: text('sections').notNull(), // JSON string of section objects
+  defaultTerms: text('default_terms'), // Standard T&C
+
+  // Metadata
+  isDefaultTemplate: integer('is_default_template', { mode: 'boolean' }).notNull().default(false),
+  timesUsed: integer('times_used').notNull().default(0),
+  averageAcceptanceRate: text('average_acceptance_rate').default('0.00'), // Stored as decimal string
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('offer_templates_org_idx').on(table.organizationId),
+  categoryIdx: index('offer_templates_category_idx').on(table.category),
+}));
+
+// Offers table (Individual offers sent to clients)
+export const offers = sqliteTable('offers', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Multi-tenant
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Creator
+
+  clientId: text('client_id')
+    .references(() => clients.id, { onDelete: 'set null' }), // Link to client
+
+  templateId: text('template_id')
+    .references(() => offerTemplates.id, { onDelete: 'set null' }),
+
+  // Offer Identification
+  offerId: text('offer_id', { length: 20 }).notNull().unique(), // OFF-2025-001
+  title: text('title', { length: 200 }).notNull(),
+  uniqueShareLink: text('unique_share_link', { length: 100 }).notNull().unique(), // Random hash for sharing
+
+  // Offer Content (stored as JSON for flexibility)
+  content: text('content').notNull(), // JSON string of offer structure
+  customMessage: text('custom_message'), // Personalized intro
+
+  // Pricing
+  totalValue: text('total_value').notNull(), // Stored as decimal string
+  discountAmount: text('discount_amount').default('0.00'), // Stored as decimal string
+  finalValue: text('final_value').notNull(), // Stored as decimal string
+  currency: text('currency', { length: 3 }).notNull().default('USD'),
+  paymentTerms: text('payment_terms', { length: 100 }), // "50% upfront, 50% on completion"
+
+  // Dates
+  dueDate: text('due_date'), // When client should decide (ISO string)
+  validUntil: text('valid_until'), // Offer expiration (ISO string)
+  sentDate: text('sent_date'), // ISO string
+  viewedDate: text('viewed_date'), // First view (ISO string)
+  decisionDate: text('decision_date'), // Accepted or declined (ISO string)
+
+  // Status
+  status: text('status', { length: 20 }).notNull().default('draft'), // 'draft', 'sent', 'viewed', 'accepted', 'declined', 'expired'
+  decisionReason: text('decision_reason'), // Why accepted/declined
+
+  // Settings
+  isPasswordProtected: integer('is_password_protected', { mode: 'boolean' }).notNull().default(false),
+  password: text('password', { length: 100 }), // Hashed password if protected
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  organizationIdx: index('offers_org_idx').on(table.organizationId),
+  clientIdx: index('offers_client_idx').on(table.clientId),
+  statusIdx: index('offers_status_idx').on(table.status),
+  shareLinkIdx: uniqueIndex('offers_share_link_idx').on(table.uniqueShareLink),
+  offerIdIdx: uniqueIndex('offers_offer_id_idx').on(table.offerId),
+}));
+
+// Offer Versions table (Track changes to offers over time)
+export const offerVersions = sqliteTable('offer_versions', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  offerId: text('offer_id')
+    .notNull()
+    .references(() => offers.id, { onDelete: 'cascade' }),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Version Details
+  versionNumber: integer('version_number').notNull(), // 1, 2, 3...
+  changesSummary: text('changes_summary'),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+
+  // Snapshot of offer content at this version
+  contentSnapshot: text('content_snapshot').notNull(), // Full JSON snapshot
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  offerIdx: index('offer_versions_offer_idx').on(table.offerId),
+  organizationIdx: index('offer_versions_org_idx').on(table.organizationId),
+}));
+
+// Offer Activities table (Track offer interactions and history)
+export const offerActivities = sqliteTable('offer_activities', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  offerId: text('offer_id')
+    .notNull()
+    .references(() => offers.id, { onDelete: 'cascade' }),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Activity Details
+  activityType: text('activity_type', { length: 50 }).notNull(), // 'created', 'sent', 'viewed', 'accepted', 'declined', 'edited', 'downloaded'
+  performedBy: text('performed_by').references(() => users.id, { onDelete: 'set null' }), // User or client
+  ipAddress: text('ip_address', { length: 50 }), // For tracking views
+  userAgent: text('user_agent'), // Browser info
+  notes: text('notes'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  offerIdx: index('offer_activities_offer_idx').on(table.offerId),
+  organizationIdx: index('offer_activities_org_idx').on(table.organizationId),
+  activityTypeIdx: index('offer_activities_type_idx').on(table.activityType),
+}));
+
+// Relations for Offers System
+export const offerTemplatesRelations = relations(offerTemplates, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [offerTemplates.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [offerTemplates.userId],
+    references: [users.id],
+  }),
+  offers: many(offers),
+}));
+
+export const offersRelations = relations(offers, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [offers.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [offers.userId],
+    references: [users.id],
+  }),
+  client: one(clients, {
+    fields: [offers.clientId],
+    references: [clients.id],
+  }),
+  template: one(offerTemplates, {
+    fields: [offers.templateId],
+    references: [offerTemplates.id],
+  }),
+  versions: many(offerVersions),
+  activities: many(offerActivities),
+}));
+
+export const offerVersionsRelations = relations(offerVersions, ({ one }) => ({
+  offer: one(offers, {
+    fields: [offerVersions.offerId],
+    references: [offers.id],
+  }),
+  organization: one(organizations, {
+    fields: [offerVersions.organizationId],
+    references: [organizations.id],
+  }),
+  createdByUser: one(users, {
+    fields: [offerVersions.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const offerActivitiesRelations = relations(offerActivities, ({ one }) => ({
+  offer: one(offers, {
+    fields: [offerActivities.offerId],
+    references: [offers.id],
+  }),
+  organization: one(organizations, {
+    fields: [offerActivities.organizationId],
+    references: [organizations.id],
+  }),
+  performedByUser: one(users, {
+    fields: [offerActivities.performedBy],
+    references: [users.id],
+  }),
+}));
+
+// Types for Offers System
+export type OfferTemplate = typeof offerTemplates.$inferSelect;
+export type NewOfferTemplate = typeof offerTemplates.$inferInsert;
+
+export type Offer = typeof offers.$inferSelect;
+export type NewOffer = typeof offers.$inferInsert;
+
+export type OfferVersion = typeof offerVersions.$inferSelect;
+export type NewOfferVersion = typeof offerVersions.$inferInsert;
+
+export type OfferActivity = typeof offerActivities.$inferSelect;
+export type NewOfferActivity = typeof offerActivities.$inferInsert;
