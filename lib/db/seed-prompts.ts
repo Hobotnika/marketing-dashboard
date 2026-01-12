@@ -1522,6 +1522,145 @@ export async function seedDefaultExecutionPrompts(organizationId: string, userId
   }
 }
 
+// ============================================
+// TEAM & COLLABORATION HUB - AI PROMPTS
+// ============================================
+
+export const DEFAULT_TEAM_PROMPTS = [
+  {
+    sectionName: 'team',
+    promptName: 'Team Performance Coach',
+    description: 'Analyze team dynamics, workload, and provide performance coaching',
+    systemPrompt: `You are a team performance coach analyzing team dynamics and productivity.
+
+Your expertise:
+- Team workload analysis and balance
+- Collaboration and communication patterns
+- Individual performance assessment
+- Process optimization and bottleneck identification
+- Team culture and morale insights
+
+Your job is to:
+- Assess overall team health and performance
+- Identify workload imbalances and bottlenecks
+- Recognize high performers and struggling members
+- Provide specific, actionable recommendations
+- Balance accountability with empathy
+- Focus on team growth and sustainability
+
+Be constructive, data-driven, and team-focused.`,
+    userPromptTemplate: `Analyze my team's performance data:
+
+**Team Overview:**
+- Team Size: {{teamSize}}
+- Total Tasks: {{totalTasks}}
+- Average Completion Rate: {{avgCompletionRate}}%
+- Tasks This Period: {{recentTaskCount}}
+
+**Member Performance:**
+{{memberPerformance}}
+
+**Workload Distribution:**
+{{workloadData}}
+
+**Collaboration Metrics:**
+- Comments per task: {{commentsPerTask}}
+- Activity count: {{activityCount}}
+- Communication frequency: {{communicationFrequency}}
+
+**Task Breakdown:**
+- Completed: {{completedTasks}}
+- In Progress: {{inProgressTasks}}
+- Overdue: {{overdueTasks}}
+- Blocked: {{blockedTasks}}
+
+Provide a comprehensive team performance analysis:
+
+1. **Team Health Assessment** (1-10 score)
+   - Overall team performance rating with reasoning
+   - Team strengths to leverage
+   - Team weaknesses to address
+   - Warning signs or risks
+
+2. **Workload Analysis**
+   - Who's overloaded vs underutilized
+   - Is workload distributed fairly?
+   - Identify bottlenecks and blockers
+   - Capacity planning recommendations
+
+3. **Collaboration Quality**
+   - Communication effectiveness assessment
+   - Cross-team collaboration patterns
+   - Knowledge sharing and documentation
+   - Risks of silos or isolation
+
+4. **Individual Insights**
+   - Top performers (who and why)
+   - Struggling team members (with empathy and support suggestions)
+   - Growth opportunities per person
+   - Recognition recommendations
+
+5. **Process Improvements**
+   - Task assignment optimization
+   - Workflow bottleneck removal
+   - Meeting and communication efficiency
+   - Tool usage optimization
+
+6. **Team Development**
+   - Skill gaps to address
+   - Training opportunities
+   - Mentorship pairings
+   - Career development paths
+
+7. **Action Plan**
+   - Top 3 immediate improvements this week
+   - Who should focus on what
+   - Process changes to implement
+   - Moments to celebrate
+
+Be specific with names and data. Balance accountability with empathy. Focus on actionable insights.`,
+    dataInputs: JSON.stringify([
+      'teamSize',
+      'totalTasks',
+      'avgCompletionRate',
+      'recentTaskCount',
+      'memberPerformance',
+      'workloadData',
+      'commentsPerTask',
+      'activityCount',
+      'communicationFrequency',
+      'completedTasks',
+      'inProgressTasks',
+      'overdueTasks',
+      'blockedTasks'
+    ]),
+    triggers: JSON.stringify(['manual']),
+  },
+];
+
+/**
+ * Seed default Team prompts for an organization
+ */
+export async function seedDefaultTeamPrompts(organizationId: string, userId: string) {
+  console.log('🌱 Seeding default Team AI prompts...');
+
+  try {
+    for (const prompt of DEFAULT_TEAM_PROMPTS) {
+      await db.insert(aiPromptTemplates).values({
+        organizationId,
+        ...prompt,
+        createdBy: userId,
+      });
+      console.log(`✅ Created Team prompt: ${prompt.promptName}`);
+    }
+
+    console.log(`\n✨ Successfully seeded ${DEFAULT_TEAM_PROMPTS.length} Team prompts!`);
+  } catch (error) {
+    console.error('❌ Error seeding Team prompts:', error);
+    throw error;
+  }
+}
+
 /**
  * Seed all default Business OS prompts for an organization
  */
@@ -1536,6 +1675,7 @@ export async function seedAllBusinessOSPrompts(organizationId: string, userId: s
   await seedDefaultScriptsPrompts(organizationId, userId);
   await seedDefaultOffersPrompts(organizationId, userId);
   await seedDefaultExecutionPrompts(organizationId, userId);
+  await seedDefaultTeamPrompts(organizationId, userId);
 
   console.log('\n✨ Successfully seeded all Business OS prompts!');
 }

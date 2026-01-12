@@ -2272,6 +2272,220 @@ export const loomVideos = sqliteTable('loom_videos', {
   orgIdx: index('loom_videos_org_idx').on(table.organizationId),
 }));
 
+// ============================================
+// TEAM & COLLABORATION HUB (Section 10)
+// ============================================
+
+// Team Members table
+export const teamMembers = sqliteTable('team_members', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  // Role & Department
+  role: text('role', { length: 20 }).notNull().default('member'), // 'owner', 'admin', 'member', 'viewer'
+  department: text('department', { length: 50 }), // 'sales', 'marketing', 'operations', 'finance'
+  title: text('title', { length: 100 }), // 'CEO', 'Sales Manager', etc.
+
+  // Status
+  status: text('status', { length: 20 }).notNull().default('active'), // 'active', 'inactive', 'pending_invitation'
+
+  // Invitation
+  invitedBy: text('invited_by').references(() => users.id, { onDelete: 'set null' }),
+  invitedAt: text('invited_at'),
+  joinedAt: text('joined_at'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  teamMembersOrgIdx: index('team_members_org_idx').on(table.organizationId),
+  teamMembersUserIdx: index('team_members_user_idx').on(table.userId),
+}));
+
+// Tasks table
+export const tasks = sqliteTable('tasks', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  createdBy: text('created_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  assignedTo: text('assigned_to')
+    .references(() => users.id, { onDelete: 'set null' }),
+
+  // Task Details
+  taskType: text('task_type', { length: 50 }), // 'activity', 'okr', 'milestone', 'offer', 'connection', 'content', 'custom'
+  linkedEntityId: text('linked_entity_id'), // Links to specific record in another table
+  linkedSection: text('linked_section', { length: 50 }), // 'planning', 'execution', 'marketing', etc.
+
+  title: text('title', { length: 200 }).notNull(),
+  description: text('description'),
+
+  // Priority & Status
+  priority: text('priority', { length: 20 }).notNull().default('medium'), // 'low', 'medium', 'high', 'urgent'
+  status: text('status', { length: 20 }).notNull().default('todo'), // 'todo', 'in_progress', 'blocked', 'completed', 'cancelled'
+
+  // Dates
+  dueDate: text('due_date'),
+  completedAt: text('completed_at'),
+
+  // Time Tracking
+  estimatedTimeMinutes: integer('estimated_time_minutes'),
+  actualTimeMinutes: integer('actual_time_minutes'),
+
+  // Tags
+  tags: text('tags'), // JSON array or comma-separated
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  tasksOrgIdx: index('tasks_org_idx').on(table.organizationId),
+  tasksAssignedIdx: index('tasks_assigned_idx').on(table.assignedTo),
+  tasksStatusIdx: index('tasks_status_idx').on(table.status),
+}));
+
+// Activity Feed table
+export const activityFeed = sqliteTable('activity_feed', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Who performed the action
+
+  // Activity Details
+  activityType: text('activity_type', { length: 50 }).notNull(), // 'task_assigned', 'task_completed', 'offer_created', etc.
+  entityType: text('entity_type', { length: 50 }), // 'task', 'offer', 'client', 'okr', etc.
+  entityId: text('entity_id'), // Reference to specific record
+  activityText: text('activity_text').notNull(), // "John completed task 'Create Q1 report'"
+  metadata: text('metadata'), // JSON: additional context
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  activityFeedOrgIdx: index('activity_feed_org_idx').on(table.organizationId),
+  activityFeedCreatedIdx: index('activity_feed_created_idx').on(table.createdAt),
+}));
+
+// Comments table
+export const comments = sqliteTable('comments', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Commenter
+
+  // Entity Link
+  entityType: text('entity_type', { length: 50 }).notNull(), // 'task', 'offer', 'client', 'activity', 'okr', 'milestone'
+  entityId: text('entity_id').notNull(),
+
+  // Comment Content
+  commentText: text('comment_text').notNull(),
+  mentions: text('mentions'), // JSON array of user_ids
+
+  // Threading
+  parentCommentId: text('parent_comment_id').references(() => comments.id, { onDelete: 'cascade' }),
+
+  // Edit Tracking
+  isEdited: integer('is_edited', { mode: 'boolean' }).notNull().default(false),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  commentsEntityIdx: index('comments_entity_idx').on(table.entityType, table.entityId),
+  commentsOrgIdx: index('comments_org_idx').on(table.organizationId),
+}));
+
+// Notifications table
+export const notifications = sqliteTable('notifications', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Recipient
+
+  // Notification Details
+  notificationType: text('notification_type', { length: 50 }).notNull(), // 'task_assigned', 'mention', 'task_due_soon', etc.
+  title: text('title', { length: 200 }).notNull(),
+  message: text('message'),
+  link: text('link', { length: 500 }), // Deep link to entity
+
+  // Read Status
+  isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
+  readAt: text('read_at'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  notificationsUserIdx: index('notifications_user_idx').on(table.userId),
+  notificationsUnreadIdx: index('notifications_unread_idx').on(table.userId, table.isRead),
+}));
+
+// Conversations table
+export const conversations = sqliteTable('conversations', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  // Conversation Type
+  type: text('type', { length: 20 }).notNull(), // 'direct', 'group', 'announcement'
+  participants: text('participants').notNull(), // JSON array of user_ids
+
+  // Metadata
+  lastMessageAt: text('last_message_at'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  conversationsOrgIdx: index('conversations_org_idx').on(table.organizationId),
+}));
+
+// Messages table
+export const messages = sqliteTable('messages', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  conversationId: text('conversation_id')
+    .notNull()
+    .references(() => conversations.id, { onDelete: 'cascade' }),
+
+  senderId: text('sender_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  // Message Content
+  messageText: text('message_text').notNull(),
+  attachments: text('attachments'), // JSON: file URLs
+  isAnnouncement: integer('is_announcement', { mode: 'boolean' }).notNull().default(false),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  messagesConversationIdx: index('messages_conversation_idx').on(table.conversationId),
+}));
+
 // Relations for Execution Tracking
 export const executionLogsRelations = relations(executionLogs, ({ one }) => ({
   organization: one(organizations, {
@@ -2369,3 +2583,118 @@ export type NewExecutionStreak = typeof executionStreaks.$inferInsert;
 
 export type LoomVideo = typeof loomVideos.$inferSelect;
 export type NewLoomVideo = typeof loomVideos.$inferInsert;
+
+// Relations for Team & Collaboration
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [teamMembers.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [teamMembers.userId],
+    references: [users.id],
+  }),
+  inviter: one(users, {
+    fields: [teamMembers.invitedBy],
+    references: [users.id],
+  }),
+}));
+
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [tasks.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [tasks.createdBy],
+    references: [users.id],
+  }),
+  assignee: one(users, {
+    fields: [tasks.assignedTo],
+    references: [users.id],
+  }),
+  comments: many(comments),
+}));
+
+export const activityFeedRelations = relations(activityFeed, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [activityFeed.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [activityFeed.userId],
+    references: [users.id],
+  }),
+}));
+
+export const commentsRelations = relations(comments, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [comments.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [comments.userId],
+    references: [users.id],
+  }),
+  parentComment: one(comments, {
+    fields: [comments.parentCommentId],
+    references: [comments.id],
+  }),
+  replies: many(comments),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [notifications.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
+export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [conversations.organizationId],
+    references: [organizations.id],
+  }),
+  messages: many(messages),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [messages.organizationId],
+    references: [organizations.id],
+  }),
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+  sender: one(users, {
+    fields: [messages.senderId],
+    references: [users.id],
+  }),
+}));
+
+// Types for Team & Collaboration
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type NewTeamMember = typeof teamMembers.$inferInsert;
+
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;
+
+export type ActivityFeedItem = typeof activityFeed.$inferSelect;
+export type NewActivityFeedItem = typeof activityFeed.$inferInsert;
+
+export type Comment = typeof comments.$inferSelect;
+export type NewComment = typeof comments.$inferInsert;
+
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
+
+export type Conversation = typeof conversations.$inferSelect;
+export type NewConversation = typeof conversations.$inferInsert;
+
+export type Message = typeof messages.$inferSelect;
+export type NewMessage = typeof messages.$inferInsert;
