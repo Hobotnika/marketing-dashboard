@@ -60,7 +60,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   pages: {
-    signIn: '/login',
+    signIn: '/auth/signin',
+    error: '/auth/error',
   },
   callbacks: {
     async jwt({ token, user }) {
@@ -84,18 +85,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.role = token.role as 'admin' | 'viewer';
       }
       return session;
-    },
-    async redirect({ url, baseUrl }) {
-      // If redirecting after login, ensure user goes to their organization's subdomain
-      // This handles cases where user logs in on main domain
-      if (url.startsWith('/')) {
-        return `${baseUrl}${url}`;
-      }
-      // Allow callback URLs on same origin
-      if (url.startsWith(baseUrl)) {
-        return url;
-      }
-      return baseUrl;
     },
   },
   session: {

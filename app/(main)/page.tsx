@@ -1,6 +1,16 @@
 import Link from 'next/link';
+import { auth } from '@/auth';
+import { redirect } from 'next/navigation';
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  // Check if user is authenticated
+  const session = await auth();
+
+  // If authenticated, redirect to dashboard
+  if (session) {
+    redirect('/dashboard');
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
       {/* Hero Section */}
@@ -26,12 +36,20 @@ export default function LandingPage() {
             <span className="text-xl font-bold">Marketing Dashboard</span>
           </div>
 
-          <Link
-            href="/login"
-            className="px-6 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors"
-          >
-            Sign In
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/auth/signup"
+              className="px-6 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors"
+            >
+              Sign Up
+            </Link>
+            <Link
+              href="/auth/signin"
+              className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-colors"
+            >
+              Sign In
+            </Link>
+          </div>
         </header>
 
         {/* Hero Content */}
@@ -46,7 +64,7 @@ export default function LandingPage() {
 
           <div className="flex items-center justify-center gap-4">
             <Link
-              href="/login"
+              href="/auth/signup"
               className="px-8 py-4 bg-green-600 hover:bg-green-700 rounded-lg font-semibold text-lg transition-colors shadow-lg hover:shadow-xl"
             >
               Get Started
