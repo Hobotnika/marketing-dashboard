@@ -7,7 +7,7 @@ import { protectTenantRoute } from '@/lib/api/tenant-security';
 /**
  * Generate unique offer ID (OFF-YYYY-NNN format)
  */
-async function generateOfferId(organizationId: string): Promise<string> {
+async function generateOfferId(workspaceId: string): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `OFF-${year}-`;
 
@@ -17,7 +17,7 @@ async function generateOfferId(organizationId: string): Promise<string> {
     .from(offers)
     .where(
       and(
-        eq(offers.organizationId, organizationId),
+        eq(offers.workspaceId, workspaceId),
         like(offers.offerId, `${prefix}%`)
       )
     )
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
 
     // Build where conditions
-    let whereConditions = [eq(offers.organizationId, context.organizationId)];
+    let whereConditions = [eq(offers.workspaceId, context.workspaceId)];
 
     if (status && status !== 'all') {
       whereConditions.push(eq(offers.status, status));
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
       const client = await db.query.clients.findFirst({
         where: and(
           eq(clients.id, clientId),
-          eq(clients.organizationId, context.organizationId)
+          eq(clients.workspaceId, context.workspaceId)
         ),
       });
 
@@ -194,13 +194,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Auto-generate offer ID and share link
-    const offerId = await generateOfferId(context.organizationId);
+    const offerId = await generateOfferId(context.workspaceId);
     const uniqueShareLink = generateShareLink();
 
     const newOffer = await db
       .insert(offers)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         clientId: clientId || null,
         templateId: templateId || null,
@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
     // Log activity
     await db.insert(offerActivities).values({
       offerId: newOffer[0].id,
-      organizationId: context.organizationId,
+      workspaceId: context.workspaceId,
       activityType: 'created',
       performedBy: context.userId,
       notes: 'Offer created',

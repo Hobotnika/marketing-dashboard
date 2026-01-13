@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     // Build query conditions (user-private: filter by both org and user)
     let conditions = [
-      eq(silentTimeBlocks.organizationId, context.organizationId),
+      eq(silentTimeBlocks.workspaceId, context.workspaceId),
       eq(silentTimeBlocks.userId, context.userId),
     ];
 
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     const newBlock = await db
       .insert(silentTimeBlocks)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId, // User-private
         date,
         startTime,

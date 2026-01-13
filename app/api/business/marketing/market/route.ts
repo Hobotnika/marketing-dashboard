@@ -12,10 +12,10 @@ import { eq } from 'drizzle-orm';
  */
 export const GET = withTenantSecurity(async (request: Request, context) => {
   try {
-    console.log('[Marketing/Market] Fetching for org:', context.organizationId);
+    console.log('[Marketing/Market] Fetching for org:', context.workspaceId);
 
     const marketDef = await db.query.marketDefinitions.findFirst({
-      where: eq(marketDefinitions.organizationId, context.organizationId),
+      where: eq(marketDefinitions.workspaceId, context.workspaceId),
     });
 
     console.log('[Marketing/Market] Found:', marketDef ? 'Yes' : 'No');
@@ -59,12 +59,12 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       nichePositioning,
     } = body;
 
-    console.log('[Marketing/Market] Upserting for org:', context.organizationId);
+    console.log('[Marketing/Market] Upserting for org:', context.workspaceId);
     console.log('[Marketing/Market] User:', context.userId);
 
     // Check if market definition already exists
     const existing = await db.query.marketDefinitions.findFirst({
-      where: eq(marketDefinitions.organizationId, context.organizationId),
+      where: eq(marketDefinitions.workspaceId, context.workspaceId),
     });
 
     let result;
@@ -92,7 +92,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       const [created] = await db
         .insert(marketDefinitions)
         .values({
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           userId: context.userId,
           targetMarketDescription: targetMarketDescription || null,
           primarySegment: primarySegment || null,

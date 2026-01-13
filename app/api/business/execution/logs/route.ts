@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     const newLog = await db
       .insert(executionLogs)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         date: date || new Date().toISOString().split('T')[0],
         activityTitle,

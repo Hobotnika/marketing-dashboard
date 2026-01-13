@@ -23,7 +23,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
     startDate.setDate(startDate.getDate() - days);
     const startDateStr = startDate.toISOString().split('T')[0];
 
-    console.log('[KPIs] Fetching snapshots for org:', context.organizationId);
+    console.log('[KPIs] Fetching snapshots for org:', context.workspaceId);
     console.log('[KPIs] Date range:', startDateStr, 'to today');
 
     // Fetch KPI snapshots for this organization
@@ -32,7 +32,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
       .from(kpiSnapshots)
       .where(
         and(
-          eq(kpiSnapshots.organizationId, context.organizationId),
+          eq(kpiSnapshots.workspaceId, context.workspaceId),
           gte(kpiSnapshots.date, startDateStr)
         )
       )
@@ -93,7 +93,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
     }
 
     console.log('[KPIs] Saving for date:', date);
-    console.log('[KPIs] Organization:', context.organizationId);
+    console.log('[KPIs] Organization:', context.workspaceId);
     console.log('[KPIs] User:', context.userId);
 
     // Check if entry exists for this organization and date
@@ -102,7 +102,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       .from(kpiSnapshots)
       .where(
         and(
-          eq(kpiSnapshots.organizationId, context.organizationId),
+          eq(kpiSnapshots.workspaceId, context.workspaceId),
           eq(kpiSnapshots.date, date)
         )
       )
@@ -144,7 +144,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       const [created] = await db
         .insert(kpiSnapshots)
         .values({
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           userId: context.userId,
           date,
           exposure: metrics.exposure ?? 0,

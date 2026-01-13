@@ -20,7 +20,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
       .from(userPrinciples)
       .where(
         and(
-          eq(userPrinciples.organizationId, context.organizationId),
+          eq(userPrinciples.workspaceId, context.workspaceId),
           eq(userPrinciples.userId, context.userId) // USER-PRIVATE!
         )
       )
@@ -61,7 +61,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       .from(userPrinciples)
       .where(
         and(
-          eq(userPrinciples.organizationId, context.organizationId),
+          eq(userPrinciples.workspaceId, context.workspaceId),
           eq(userPrinciples.userId, context.userId)
         )
       )
@@ -89,7 +89,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       const created = await db
         .insert(userPrinciples)
         .values({
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           userId: context.userId,
           isPrivate: true,
           ...body,

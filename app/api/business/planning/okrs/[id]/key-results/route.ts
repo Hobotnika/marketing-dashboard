@@ -39,7 +39,7 @@ export async function POST(
       .where(
         and(
           eq(quarterlyOKRs.id, okrId),
-          eq(quarterlyOKRs.organizationId, context.organizationId)
+          eq(quarterlyOKRs.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -65,7 +65,7 @@ export async function POST(
       .insert(keyResults)
       .values({
         okrId,
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         keyResultTitle,
         targetValue: targetValue || null,
         currentValue: currentValue || '0',
@@ -129,7 +129,7 @@ export async function PATCH(
         and(
           eq(keyResults.id, keyResultId),
           eq(keyResults.okrId, okrId),
-          eq(keyResults.organizationId, context.organizationId)
+          eq(keyResults.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -169,7 +169,7 @@ export async function PATCH(
         and(
           eq(keyResults.id, keyResultId),
           eq(keyResults.okrId, okrId),
-          eq(keyResults.organizationId, context.organizationId)
+          eq(keyResults.workspaceId, context.workspaceId)
         )
       )
       .returning();

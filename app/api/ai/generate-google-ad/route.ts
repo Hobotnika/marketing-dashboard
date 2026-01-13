@@ -40,8 +40,8 @@ export async function POST(request: Request) {
           and(
             eq(aiPrompts.id, prompt_id),
             or(
-              eq(aiPrompts.organizationId, context.organizationId),
-              isNull(aiPrompts.organizationId)
+              eq(aiPrompts.workspaceId, context.workspaceId),
+              isNull(aiPrompts.workspaceId)
             ),
             eq(aiPrompts.category, 'google_ads'),
             eq(aiPrompts.isActive, true)
@@ -58,14 +58,14 @@ export async function POST(request: Request) {
           and(
             eq(aiPrompts.category, 'google_ads'),
             or(
-              eq(aiPrompts.organizationId, context.organizationId),
-              isNull(aiPrompts.organizationId)
+              eq(aiPrompts.workspaceId, context.workspaceId),
+              isNull(aiPrompts.workspaceId)
             ),
             eq(aiPrompts.isDefault, true),
             eq(aiPrompts.isActive, true)
           )
         )
-        .orderBy(aiPrompts.organizationId) // Org prompts before system prompts
+        .orderBy(aiPrompts.workspaceId) // Org prompts before system prompts
         .limit(1);
 
       prompt = prompts[0];
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     const [organization] = await db
       .select()
       .from(organizations)
-      .where(eq(organizations.id, context.organizationId))
+      .where(eq(workspaces.id, context.workspaceId))
       .limit(1);
 
     if (!organization) {

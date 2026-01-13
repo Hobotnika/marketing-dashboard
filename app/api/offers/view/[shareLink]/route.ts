@@ -74,7 +74,7 @@ export async function GET(
       // Log activity
       await db.insert(offerActivities).values({
         offerId: offer.id,
-        organizationId: offer.organizationId,
+        workspaceId: offer.workspaceId,
         activityType: 'viewed',
         performedBy: null, // Client view, no user
         ipAddress,

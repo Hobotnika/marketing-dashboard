@@ -4,11 +4,16 @@ import { relations, sql } from 'drizzle-orm';
 // SQLite doesn't have native enums, so we use text with check constraints
 // Enum values are enforced at the application level
 
-// Organizations table
-export const organizations = sqliteTable('organizations', {
+// Workspaces table (formerly Organizations)
+// Each workspace is a fully isolated environment - one user can have multiple workspaces
+export const workspaces = sqliteTable('workspaces', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text('name').notNull(),
   subdomain: text('subdomain').notNull().unique(),
+
+  // Owner of this workspace (creator)
+  // Note: No FK constraint to avoid circular dependency with users table
+  ownerId: text('owner_id').notNull(),
 
   // API Credentials (encrypted)
   calendlyAccessToken: text('calendly_access_token'),
@@ -24,7 +29,7 @@ export const organizations = sqliteTable('organizations', {
   googleAdsRefreshToken: text('google_ads_refresh_token'),
   googleAdsCustomerId: text('google_ads_customer_id'),
 
-  // Organization settings
+  // Workspace settings
   logoUrl: text('logo_url'),
   status: text('status', { enum: ['active', 'inactive', 'trial'] }).notNull().default('trial'),
 
@@ -36,29 +41,58 @@ export const organizations = sqliteTable('organizations', {
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   subdomainIdx: uniqueIndex('subdomain_idx').on(table.subdomain),
+  ownerIdx: index('workspace_owner_idx').on(table.ownerId),
+}));
+
+// User Workspaces junction table (many-to-many relationship)
+// Allows one user to access multiple workspaces with different roles
+export const userWorkspaces = sqliteTable('user_workspaces', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+
+  // Many-to-many relationship
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+
+  // Role within this specific workspace
+  role: text('role', { enum: ['owner', 'admin', 'member', 'viewer'] }).notNull().default('member'),
+
+  // Invitation tracking
+  invitedBy: text('invited_by'), // UserId of who invited this user (null for owner/first user)
+  invitedAt: text('invited_at').$defaultFn(() => new Date().toISOString()),
+  joinedAt: text('joined_at').$defaultFn(() => new Date().toISOString()),
+
+  // Timestamps
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  userWorkspaceIdx: uniqueIndex('user_workspace_unique_idx').on(table.userId, table.workspaceId), // One user can only be in a workspace once
+  userIdx: index('user_workspaces_user_idx').on(table.userId),
+  workspaceIdx: index('user_workspaces_workspace_idx').on(table.workspaceId),
 }));
 
 // Users table
+// Users can belong to multiple workspaces (via userWorkspaces junction table)
 export const users = sqliteTable('users', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   name: text('name').notNull(),
-  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
-  role: text('role', { enum: ['admin', 'viewer'] }).notNull().default('viewer'),
+
+  // Currently active workspace (for UX - remembers last selected workspace)
+  currentWorkspaceId: text('current_workspace_id').references(() => workspaces.id, { onDelete: 'set null' }),
 
   // Timestamps
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   emailIdx: uniqueIndex('email_idx').on(table.email),
-  organizationIdx: index('user_organization_idx').on(table.organizationId),
+  currentWorkspaceIdx: index('user_current_workspace_idx').on(table.currentWorkspaceId),
 }));
 
 // API Logs table (audit trail)
 export const apiLogs = sqliteTable('api_logs', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
   apiName: text('api_name').notNull(), // ex: "calendly", "stripe", "meta"
   endpoint: text('endpoint').notNull(), // ex: "/api/calendly/events"
@@ -68,14 +102,14 @@ export const apiLogs = sqliteTable('api_logs', {
   // Timestamp
   timestamp: text('timestamp').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('log_organization_idx').on(table.organizationId),
+  workspaceIdx: index('log_workspace_idx').on(table.workspaceId),
   timestampIdx: index('log_timestamp_idx').on(table.timestamp),
 }));
 
 // AI Prompts table (database-stored prompts for AI generation)
 export const aiPrompts = sqliteTable('ai_prompts', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
 
   name: text('name').notNull(),
   description: text('description'),
@@ -94,7 +128,7 @@ export const aiPrompts = sqliteTable('ai_prompts', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('prompt_organization_idx').on(table.organizationId),
+  workspaceIdx: index('prompt_workspace_idx').on(table.workspaceId),
   categoryIdx: index('prompt_category_idx').on(table.category),
   isDefaultIdx: index('prompt_is_default_idx').on(table.isDefault),
   isActiveIdx: index('prompt_is_active_idx').on(table.isActive),
@@ -103,7 +137,7 @@ export const aiPrompts = sqliteTable('ai_prompts', {
 // Ads table (AI-generated and manual ad variations)
 export const ads = sqliteTable('ads', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
 
   // Ad metadata
@@ -129,7 +163,7 @@ export const ads = sqliteTable('ads', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('ad_organization_idx').on(table.organizationId),
+  workspaceIdx: index('ad_workspace_idx').on(table.workspaceId),
   statusIdx: index('ad_status_idx').on(table.status),
   aiGeneratedIdx: index('ad_ai_generated_idx').on(table.ai_generated),
   createdAtIdx: index('ad_created_at_idx').on(table.createdAt),
@@ -138,7 +172,7 @@ export const ads = sqliteTable('ads', {
 // Customer Avatars table (AI-generated customer personas for ad rating)
 export const customerAvatars = sqliteTable('customer_avatars', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Avatar Set Info
   setName: text('set_name', { length: 100 }).notNull(), // "E-commerce Store Owners"
@@ -153,7 +187,7 @@ export const customerAvatars = sqliteTable('customer_avatars', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationSetIdx: index('avatar_organization_set_idx').on(table.organizationId, table.setName),
+  organizationSetIdx: index('avatar_workspace_set_idx').on(table.workspaceId, table.setName),
   activeIdx: index('avatar_active_idx').on(table.isActive),
 }));
 
@@ -161,7 +195,7 @@ export const customerAvatars = sqliteTable('customer_avatars', {
 export const adRatings = sqliteTable('ad_ratings', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   adId: text('ad_id').references(() => ads.id, { onDelete: 'cascade' }),
-  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Avatar Set Info
   avatarSetName: text('avatar_set_name', { length: 100 }).notNull(),
@@ -180,14 +214,18 @@ export const adRatings = sqliteTable('ad_ratings', {
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  adOrganizationIdx: index('rating_ad_organization_idx').on(table.adId, table.organizationId),
-  organizationIdx: index('rating_organization_idx').on(table.organizationId),
+  adOrganizationIdx: index('rating_ad_workspace_idx').on(table.adId, table.workspaceId),
+  workspaceIdx: index('rating_workspace_idx').on(table.workspaceId),
   createdAtIdx: index('rating_created_at_idx').on(table.createdAt),
 }));
 
 // Relations
-export const organizationsRelations = relations(organizations, ({ many }) => ({
-  users: many(users),
+export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [workspaces.ownerId],
+    references: [users.id],
+  }),
+  userWorkspaces: many(userWorkspaces),
   apiLogs: many(apiLogs),
   ads: many(ads),
   aiPrompts: many(aiPrompts),
@@ -195,20 +233,33 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   adRatings: many(adRatings),
 }));
 
-export const usersRelations = relations(users, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [users.organizationId],
-    references: [organizations.id],
+export const userWorkspacesRelations = relations(userWorkspaces, ({ one }) => ({
+  user: one(users, {
+    fields: [userWorkspaces.userId],
+    references: [users.id],
   }),
+  workspace: one(workspaces, {
+    fields: [userWorkspaces.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const usersRelations = relations(users, ({ one, many }) => ({
+  currentWorkspace: one(workspaces, {
+    fields: [users.currentWorkspaceId],
+    references: [workspaces.id],
+  }),
+  userWorkspaces: many(userWorkspaces),
+  ownedWorkspaces: many(workspaces),
   apiLogs: many(apiLogs),
   ads: many(ads),
   aiPrompts: many(aiPrompts),
 }));
 
 export const apiLogsRelations = relations(apiLogs, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [apiLogs.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [apiLogs.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [apiLogs.userId],
@@ -217,9 +268,9 @@ export const apiLogsRelations = relations(apiLogs, ({ one }) => ({
 }));
 
 export const adsRelations = relations(ads, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [ads.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [ads.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [ads.userId],
@@ -229,9 +280,9 @@ export const adsRelations = relations(ads, ({ one, many }) => ({
 }));
 
 export const aiPromptsRelations = relations(aiPrompts, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [aiPrompts.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [aiPrompts.workspaceId],
+    references: [workspaces.id],
   }),
   creator: one(users, {
     fields: [aiPrompts.createdBy],
@@ -240,9 +291,9 @@ export const aiPromptsRelations = relations(aiPrompts, ({ one }) => ({
 }));
 
 export const customerAvatarsRelations = relations(customerAvatars, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [customerAvatars.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [customerAvatars.workspaceId],
+    references: [workspaces.id],
   }),
 }));
 
@@ -251,9 +302,9 @@ export const adRatingsRelations = relations(adRatings, ({ one }) => ({
     fields: [adRatings.adId],
     references: [ads.id],
   }),
-  organization: one(organizations, {
-    fields: [adRatings.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [adRatings.workspaceId],
+    references: [workspaces.id],
   }),
 }));
 
@@ -266,7 +317,7 @@ export const kpiSnapshots = sqliteTable('kpi_snapshots', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Which user logged this data (for attribution, but data is shared)
   userId: text('user_id').notNull().references(() => users.id),
@@ -294,9 +345,9 @@ export const kpiSnapshots = sqliteTable('kpi_snapshots', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('kpi_organization_idx').on(table.organizationId),
+  workspaceIdx: index('kpi_workspace_idx').on(table.workspaceId),
   dateIdx: index('kpi_date_idx').on(table.date),
-  organizationDateIdx: uniqueIndex('kpi_organization_date_idx').on(table.organizationId, table.date), // One entry per org per day
+  organizationDateIdx: uniqueIndex('kpi_workspace_date_idx').on(table.workspaceId, table.date), // One entry per workspace per day
 }));
 
 // Income Activities table (Financial tracking - Company-level)
@@ -304,7 +355,7 @@ export const incomeActivities = sqliteTable('income_activities', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Which user logged this income
   userId: text('user_id').notNull().references(() => users.id),
@@ -324,10 +375,10 @@ export const incomeActivities = sqliteTable('income_activities', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('income_organization_idx').on(table.organizationId),
+  workspaceIdx: index('income_workspace_idx').on(table.workspaceId),
   userIdx: index('income_user_idx').on(table.userId),
   dateIdx: index('income_date_idx').on(table.date),
-  organizationDateIdx: index('income_organization_date_idx').on(table.organizationId, table.date),
+  organizationDateIdx: index('income_workspace_date_idx').on(table.workspaceId, table.date),
 }));
 
 // Transactions table (Expense tracking - Company-level)
@@ -335,7 +386,7 @@ export const transactions = sqliteTable('transactions', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Which user logged this transaction
   userId: text('user_id').notNull().references(() => users.id),
@@ -358,11 +409,11 @@ export const transactions = sqliteTable('transactions', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('transaction_organization_idx').on(table.organizationId),
+  workspaceIdx: index('transaction_workspace_idx').on(table.workspaceId),
   userIdx: index('transaction_user_idx').on(table.userId),
   dateIdx: index('transaction_date_idx').on(table.date),
   categoryIdx: index('transaction_category_idx').on(table.category),
-  organizationDateIdx: index('transaction_organization_date_idx').on(table.organizationId, table.date),
+  organizationDateIdx: index('transaction_workspace_date_idx').on(table.workspaceId, table.date),
 }));
 
 // Cash Flow Snapshots table (Daily financial summaries - Company-level)
@@ -370,7 +421,7 @@ export const cashFlowSnapshots = sqliteTable('cash_flow_snapshots', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Which user created this snapshot
   userId: text('user_id').notNull().references(() => users.id),
@@ -401,16 +452,16 @@ export const cashFlowSnapshots = sqliteTable('cash_flow_snapshots', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('cashflow_organization_idx').on(table.organizationId),
+  workspaceIdx: index('cashflow_workspace_idx').on(table.workspaceId),
   dateIdx: index('cashflow_date_idx').on(table.date),
-  organizationDateIdx: uniqueIndex('cashflow_organization_date_idx').on(table.organizationId, table.date),
+  organizationDateIdx: uniqueIndex('cashflow_workspace_date_idx').on(table.workspaceId, table.date),
 }));
 
 // Relations for KPIs
 export const kpiSnapshotsRelations = relations(kpiSnapshots, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [kpiSnapshots.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [kpiSnapshots.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [kpiSnapshots.userId],
@@ -419,9 +470,9 @@ export const kpiSnapshotsRelations = relations(kpiSnapshots, ({ one }) => ({
 }));
 
 export const incomeActivitiesRelations = relations(incomeActivities, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [incomeActivities.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [incomeActivities.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [incomeActivities.userId],
@@ -430,9 +481,9 @@ export const incomeActivitiesRelations = relations(incomeActivities, ({ one }) =
 }));
 
 export const transactionsRelations = relations(transactions, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [transactions.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [transactions.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [transactions.userId],
@@ -441,9 +492,9 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
 }));
 
 export const cashFlowSnapshotsRelations = relations(cashFlowSnapshots, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [cashFlowSnapshots.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [cashFlowSnapshots.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [cashFlowSnapshots.userId],
@@ -460,9 +511,9 @@ export const dailyRoutines = sqliteTable('daily_routines', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant + user-scoped
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -497,20 +548,20 @@ export const dailyRoutines = sqliteTable('daily_routines', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('routine_organization_idx').on(table.organizationId),
+  workspaceIdx: index('routine_workspace_idx').on(table.workspaceId),
   userIdx: index('routine_user_idx').on(table.userId),
   dateIdx: index('routine_date_idx').on(table.date),
   // Unique: one routine per user per day
-  uniqueUserDate: uniqueIndex('routine_unique_user_date_idx').on(table.organizationId, table.userId, table.date),
+  uniqueUserDate: uniqueIndex('routine_unique_user_date_idx').on(table.workspaceId, table.userId, table.date),
 }));
 
 // Principles & purpose (user-private, infrequently updated)
 export const userPrinciples = sqliteTable('user_principles', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -533,17 +584,17 @@ export const userPrinciples = sqliteTable('user_principles', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('principles_organization_idx').on(table.organizationId),
+  workspaceIdx: index('principles_workspace_idx').on(table.workspaceId),
   userIdx: index('principles_user_idx').on(table.userId),
   // Unique: one principles record per user
-  uniqueUser: uniqueIndex('principles_unique_user_idx').on(table.organizationId, table.userId),
+  uniqueUser: uniqueIndex('principles_unique_user_idx').on(table.workspaceId, table.userId),
 }));
 
 // Relations for Congruence tables
 export const dailyRoutinesRelations = relations(dailyRoutines, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [dailyRoutines.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [dailyRoutines.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [dailyRoutines.userId],
@@ -552,9 +603,9 @@ export const dailyRoutinesRelations = relations(dailyRoutines, ({ one }) => ({
 }));
 
 export const userPrinciplesRelations = relations(userPrinciples, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [userPrinciples.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [userPrinciples.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [userPrinciples.userId],
@@ -571,9 +622,9 @@ export const marketDefinitions = sqliteTable('market_definitions', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Who created/updated
   userId: text('user_id')
@@ -590,9 +641,9 @@ export const marketDefinitions = sqliteTable('market_definitions', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('market_def_organization_idx').on(table.organizationId),
+  workspaceIdx: index('market_def_workspace_idx').on(table.workspaceId),
   // Unique: one market definition per organization
-  uniqueOrg: uniqueIndex('market_def_unique_org_idx').on(table.organizationId),
+  uniqueOrg: uniqueIndex('market_def_unique_org_idx').on(table.workspaceId),
 }));
 
 // Message Framework (WHAT) - One per organization
@@ -600,9 +651,9 @@ export const messageFrameworks = sqliteTable('message_frameworks', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -615,8 +666,8 @@ export const messageFrameworks = sqliteTable('message_frameworks', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('msg_framework_organization_idx').on(table.organizationId),
-  uniqueOrg: uniqueIndex('msg_framework_unique_org_idx').on(table.organizationId),
+  workspaceIdx: index('msg_framework_workspace_idx').on(table.workspaceId),
+  uniqueOrg: uniqueIndex('msg_framework_unique_org_idx').on(table.workspaceId),
 }));
 
 // Pain Points - Child of messageFrameworks
@@ -624,9 +675,9 @@ export const painPoints = sqliteTable('pain_points', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant + Parent reference
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   messageFrameworkId: text('message_framework_id')
     .notNull()
@@ -638,7 +689,7 @@ export const painPoints = sqliteTable('pain_points', {
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('pain_point_organization_idx').on(table.organizationId),
+  workspaceIdx: index('pain_point_workspace_idx').on(table.workspaceId),
   frameworkIdx: index('pain_point_framework_idx').on(table.messageFrameworkId),
 }));
 
@@ -647,9 +698,9 @@ export const usps = sqliteTable('usps', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant + Parent reference
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   messageFrameworkId: text('message_framework_id')
     .notNull()
@@ -662,7 +713,7 @@ export const usps = sqliteTable('usps', {
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('usp_organization_idx').on(table.organizationId),
+  workspaceIdx: index('usp_workspace_idx').on(table.workspaceId),
   frameworkIdx: index('usp_framework_idx').on(table.messageFrameworkId),
 }));
 
@@ -671,9 +722,9 @@ export const contentCalendar = sqliteTable('content_calendar', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -698,11 +749,11 @@ export const contentCalendar = sqliteTable('content_calendar', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('content_calendar_organization_idx').on(table.organizationId),
+  workspaceIdx: index('content_calendar_workspace_idx').on(table.workspaceId),
   dateIdx: index('content_calendar_date_idx').on(table.scheduledDate),
   platformIdx: index('content_calendar_platform_idx').on(table.platform),
   statusIdx: index('content_calendar_status_idx').on(table.status),
-  organizationDateIdx: index('content_calendar_org_date_idx').on(table.organizationId, table.scheduledDate),
+  organizationDateIdx: index('content_calendar_org_date_idx').on(table.workspaceId, table.scheduledDate),
 }));
 
 // Competitors - Track competitive landscape
@@ -710,9 +761,9 @@ export const competitors = sqliteTable('competitors', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -730,7 +781,7 @@ export const competitors = sqliteTable('competitors', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('competitor_organization_idx').on(table.organizationId),
+  workspaceIdx: index('competitor_workspace_idx').on(table.workspaceId),
 }));
 
 // ============================================
@@ -742,9 +793,9 @@ export const aiPromptTemplates = sqliteTable('ai_prompt_templates', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Which section this prompt belongs to
   sectionName: text('section_name').notNull(), // 'kpis', 'marketing', 'congruence', etc.
@@ -774,7 +825,7 @@ export const aiPromptTemplates = sqliteTable('ai_prompt_templates', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('ai_prompt_template_organization_idx').on(table.organizationId),
+  workspaceIdx: index('ai_prompt_template_workspace_idx').on(table.workspaceId),
   sectionIdx: index('ai_prompt_template_section_idx').on(table.sectionName),
   activeIdx: index('ai_prompt_template_active_idx').on(table.isActive),
 }));
@@ -784,9 +835,9 @@ export const aiAnalyses = sqliteTable('ai_analyses', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Who triggered this analysis
   userId: text('user_id')
@@ -816,7 +867,7 @@ export const aiAnalyses = sqliteTable('ai_analyses', {
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('ai_analysis_organization_idx').on(table.organizationId),
+  workspaceIdx: index('ai_analysis_workspace_idx').on(table.workspaceId),
   sectionIdx: index('ai_analysis_section_idx').on(table.sectionName),
   userIdx: index('ai_analysis_user_idx').on(table.userId),
   createdAtIdx: index('ai_analysis_created_at_idx').on(table.createdAt),
@@ -824,9 +875,9 @@ export const aiAnalyses = sqliteTable('ai_analyses', {
 
 // Relations for AI Infrastructure
 export const aiPromptTemplatesRelations = relations(aiPromptTemplates, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [aiPromptTemplates.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [aiPromptTemplates.workspaceId],
+    references: [workspaces.id],
   }),
   creator: one(users, {
     fields: [aiPromptTemplates.createdBy],
@@ -836,9 +887,9 @@ export const aiPromptTemplatesRelations = relations(aiPromptTemplates, ({ one, m
 }));
 
 export const aiAnalysesRelations = relations(aiAnalyses, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [aiAnalyses.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [aiAnalyses.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [aiAnalyses.userId],
@@ -852,9 +903,9 @@ export const aiAnalysesRelations = relations(aiAnalyses, ({ one }) => ({
 
 // Relations for Marketing Engine
 export const marketDefinitionsRelations = relations(marketDefinitions, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [marketDefinitions.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [marketDefinitions.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [marketDefinitions.userId],
@@ -863,9 +914,9 @@ export const marketDefinitionsRelations = relations(marketDefinitions, ({ one })
 }));
 
 export const messageFrameworksRelations = relations(messageFrameworks, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [messageFrameworks.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [messageFrameworks.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [messageFrameworks.userId],
@@ -876,9 +927,9 @@ export const messageFrameworksRelations = relations(messageFrameworks, ({ one, m
 }));
 
 export const painPointsRelations = relations(painPoints, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [painPoints.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [painPoints.workspaceId],
+    references: [workspaces.id],
   }),
   framework: one(messageFrameworks, {
     fields: [painPoints.messageFrameworkId],
@@ -887,9 +938,9 @@ export const painPointsRelations = relations(painPoints, ({ one }) => ({
 }));
 
 export const uspsRelations = relations(usps, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [usps.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [usps.workspaceId],
+    references: [workspaces.id],
   }),
   framework: one(messageFrameworks, {
     fields: [usps.messageFrameworkId],
@@ -898,9 +949,9 @@ export const uspsRelations = relations(usps, ({ one }) => ({
 }));
 
 export const contentCalendarRelations = relations(contentCalendar, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [contentCalendar.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [contentCalendar.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [contentCalendar.userId],
@@ -909,9 +960,9 @@ export const contentCalendarRelations = relations(contentCalendar, ({ one }) => 
 }));
 
 export const competitorsRelations = relations(competitors, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [competitors.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [competitors.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [competitors.userId],
@@ -919,8 +970,8 @@ export const competitorsRelations = relations(competitors, ({ one }) => ({
   }),
 }));
 
-// Update organizations relations to include all Business OS tables
-export const organizationsRelationsExtended = relations(organizations, ({ many }) => ({
+// Extended workspace relations to include all Business OS tables
+export const workspacesRelationsExtended = relations(workspaces, ({ many }) => ({
   users: many(users),
   apiLogs: many(apiLogs),
   ads: many(ads),
@@ -970,8 +1021,11 @@ export const organizationsRelationsExtended = relations(organizations, ({ many }
 }));
 
 // Types
-export type Organization = typeof organizations.$inferSelect;
-export type NewOrganization = typeof organizations.$inferInsert;
+export type Workspace = typeof workspaces.$inferSelect;
+export type NewWorkspace = typeof workspaces.$inferInsert;
+
+export type UserWorkspace = typeof userWorkspaces.$inferSelect;
+export type NewUserWorkspace = typeof userWorkspaces.$inferInsert;
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -1042,9 +1096,9 @@ export const clients = sqliteTable('clients', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1076,7 +1130,7 @@ export const clients = sqliteTable('clients', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('clients_org_idx').on(table.organizationId),
+  workspaceIdx: index('clients_org_idx').on(table.workspaceId),
   statusIdx: index('clients_status_idx').on(table.status),
   healthScoreIdx: index('clients_health_score_idx').on(table.healthScore),
 }));
@@ -1089,9 +1143,9 @@ export const clientStageHistory = sqliteTable('client_stage_history', {
     .notNull()
     .references(() => clients.id, { onDelete: 'cascade' }),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1104,7 +1158,7 @@ export const clientStageHistory = sqliteTable('client_stage_history', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   clientIdx: index('client_stage_history_client_idx').on(table.clientId),
-  organizationIdx: index('client_stage_history_org_idx').on(table.organizationId),
+  workspaceIdx: index('client_stage_history_org_idx').on(table.workspaceId),
 }));
 
 // Client Health Metrics (Manual metric logging)
@@ -1115,9 +1169,9 @@ export const clientHealthMetrics = sqliteTable('client_health_metrics', {
     .notNull()
     .references(() => clients.id, { onDelete: 'cascade' }),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1132,7 +1186,7 @@ export const clientHealthMetrics = sqliteTable('client_health_metrics', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   clientIdx: index('client_health_metrics_client_idx').on(table.clientId),
-  organizationIdx: index('client_health_metrics_org_idx').on(table.organizationId),
+  workspaceIdx: index('client_health_metrics_org_idx').on(table.workspaceId),
 }));
 
 // Onboarding Tasks (Checklist for new clients)
@@ -1143,9 +1197,9 @@ export const onboardingTasks = sqliteTable('onboarding_tasks', {
     .notNull()
     .references(() => clients.id, { onDelete: 'cascade' }),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   taskName: text('task_name', { length: 200 }).notNull(),
   isCompleted: integer('is_completed', { mode: 'boolean' }).notNull().default(false),
@@ -1158,7 +1212,7 @@ export const onboardingTasks = sqliteTable('onboarding_tasks', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   clientIdx: index('onboarding_tasks_client_idx').on(table.clientId),
-  organizationIdx: index('onboarding_tasks_org_idx').on(table.organizationId),
+  workspaceIdx: index('onboarding_tasks_org_idx').on(table.workspaceId),
 }));
 
 // Client Milestones (Track achievements and wins)
@@ -1169,9 +1223,9 @@ export const clientMilestones = sqliteTable('client_milestones', {
     .notNull()
     .references(() => clients.id, { onDelete: 'cascade' }),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1186,7 +1240,7 @@ export const clientMilestones = sqliteTable('client_milestones', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   clientIdx: index('client_milestones_client_idx').on(table.clientId),
-  organizationIdx: index('client_milestones_org_idx').on(table.organizationId),
+  workspaceIdx: index('client_milestones_org_idx').on(table.workspaceId),
 }));
 
 // Churn Risk Interventions (Actions taken for at-risk clients)
@@ -1197,9 +1251,9 @@ export const churnRiskInterventions = sqliteTable('churn_risk_interventions', {
     .notNull()
     .references(() => clients.id, { onDelete: 'cascade' }),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1219,14 +1273,14 @@ export const churnRiskInterventions = sqliteTable('churn_risk_interventions', {
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   clientIdx: index('churn_risk_interventions_client_idx').on(table.clientId),
-  organizationIdx: index('churn_risk_interventions_org_idx').on(table.organizationId),
+  workspaceIdx: index('churn_risk_interventions_org_idx').on(table.workspaceId),
 }));
 
 // Relations for Client Success Hub
 export const clientsRelations = relations(clients, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [clients.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [clients.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [clients.userId],
@@ -1244,9 +1298,9 @@ export const clientStageHistoryRelations = relations(clientStageHistory, ({ one 
     fields: [clientStageHistory.clientId],
     references: [clients.id],
   }),
-  organization: one(organizations, {
-    fields: [clientStageHistory.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [clientStageHistory.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [clientStageHistory.userId],
@@ -1259,9 +1313,9 @@ export const clientHealthMetricsRelations = relations(clientHealthMetrics, ({ on
     fields: [clientHealthMetrics.clientId],
     references: [clients.id],
   }),
-  organization: one(organizations, {
-    fields: [clientHealthMetrics.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [clientHealthMetrics.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [clientHealthMetrics.userId],
@@ -1274,9 +1328,9 @@ export const onboardingTasksRelations = relations(onboardingTasks, ({ one }) => 
     fields: [onboardingTasks.clientId],
     references: [clients.id],
   }),
-  organization: one(organizations, {
-    fields: [onboardingTasks.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [onboardingTasks.workspaceId],
+    references: [workspaces.id],
   }),
   completedByUser: one(users, {
     fields: [onboardingTasks.completedBy],
@@ -1289,9 +1343,9 @@ export const clientMilestonesRelations = relations(clientMilestones, ({ one }) =
     fields: [clientMilestones.clientId],
     references: [clients.id],
   }),
-  organization: one(organizations, {
-    fields: [clientMilestones.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [clientMilestones.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [clientMilestones.userId],
@@ -1304,9 +1358,9 @@ export const churnRiskInterventionsRelations = relations(churnRiskInterventions,
     fields: [churnRiskInterventions.clientId],
     references: [clients.id],
   }),
-  organization: one(organizations, {
-    fields: [churnRiskInterventions.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [churnRiskInterventions.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [churnRiskInterventions.userId],
@@ -1342,9 +1396,9 @@ export const dmScripts = sqliteTable('dm_scripts', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1370,7 +1424,7 @@ export const dmScripts = sqliteTable('dm_scripts', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('dm_scripts_org_idx').on(table.organizationId),
+  workspaceIdx: index('dm_scripts_org_idx').on(table.workspaceId),
   categoryIdx: index('dm_scripts_category_idx').on(table.category),
 }));
 
@@ -1378,9 +1432,9 @@ export const dmScripts = sqliteTable('dm_scripts', {
 export const scriptUsageLogs = sqliteTable('script_usage_logs', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   scriptId: text('script_id')
     .notNull()
@@ -1404,7 +1458,7 @@ export const scriptUsageLogs = sqliteTable('script_usage_logs', {
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('script_usage_logs_org_idx').on(table.organizationId),
+  workspaceIdx: index('script_usage_logs_org_idx').on(table.workspaceId),
   scriptIdx: index('script_usage_logs_script_idx').on(table.scriptId),
   userIdx: index('script_usage_logs_user_idx').on(table.userId),
 }));
@@ -1413,9 +1467,9 @@ export const scriptUsageLogs = sqliteTable('script_usage_logs', {
 export const practiceSessions = sqliteTable('practice_sessions', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1444,16 +1498,16 @@ export const practiceSessions = sqliteTable('practice_sessions', {
   practiceDate: text('practice_date').notNull().$defaultFn(() => new Date().toISOString()),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('practice_sessions_org_idx').on(table.organizationId),
+  workspaceIdx: index('practice_sessions_org_idx').on(table.workspaceId),
   userIdx: index('practice_sessions_user_idx').on(table.userId),
   scriptIdx: index('practice_sessions_script_idx').on(table.scriptId),
 }));
 
 // Relations for DM Scripts Library
 export const dmScriptsRelations = relations(dmScripts, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [dmScripts.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [dmScripts.workspaceId],
+    references: [workspaces.id],
   }),
   creator: one(users, {
     fields: [dmScripts.userId],
@@ -1464,9 +1518,9 @@ export const dmScriptsRelations = relations(dmScripts, ({ one, many }) => ({
 }));
 
 export const scriptUsageLogsRelations = relations(scriptUsageLogs, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [scriptUsageLogs.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [scriptUsageLogs.workspaceId],
+    references: [workspaces.id],
   }),
   script: one(dmScripts, {
     fields: [scriptUsageLogs.scriptId],
@@ -1483,9 +1537,9 @@ export const scriptUsageLogsRelations = relations(scriptUsageLogs, ({ one }) => 
 }));
 
 export const practiceSessionsRelations = relations(practiceSessions, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [practiceSessions.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [practiceSessions.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [practiceSessions.userId],
@@ -1516,9 +1570,9 @@ export const monthlyActivities = sqliteTable('monthly_activities', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant + User-private
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1544,7 +1598,7 @@ export const monthlyActivities = sqliteTable('monthly_activities', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('monthly_activities_org_idx').on(table.organizationId),
+  workspaceIdx: index('monthly_activities_org_idx').on(table.workspaceId),
   userIdx: index('monthly_activities_user_idx').on(table.userId),
   dateIdx: index('monthly_activities_date_idx').on(table.date),
   userDateIdx: index('monthly_activities_user_date_idx').on(table.userId, table.date),
@@ -1555,9 +1609,9 @@ export const quarterlyOKRs = sqliteTable('quarterly_okrs', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant (Company-level)
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1576,8 +1630,8 @@ export const quarterlyOKRs = sqliteTable('quarterly_okrs', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('quarterly_okrs_org_idx').on(table.organizationId),
-  quarterYearIdx: index('quarterly_okrs_quarter_year_idx').on(table.organizationId, table.quarter, table.year),
+  workspaceIdx: index('quarterly_okrs_org_idx').on(table.workspaceId),
+  quarterYearIdx: index('quarterly_okrs_quarter_year_idx').on(table.workspaceId, table.quarter, table.year),
 }));
 
 // Key Results table (Measurable outcomes for OKRs)
@@ -1588,9 +1642,9 @@ export const keyResults = sqliteTable('key_results', {
     .notNull()
     .references(() => quarterlyOKRs.id, { onDelete: 'cascade' }),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Key Result Details
   description: text('description', { length: 200 }).notNull(),
@@ -1605,7 +1659,7 @@ export const keyResults = sqliteTable('key_results', {
   lastUpdated: text('last_updated').notNull().$defaultFn(() => new Date().toISOString()),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('key_results_org_idx').on(table.organizationId),
+  workspaceIdx: index('key_results_org_idx').on(table.workspaceId),
   okrIdx: index('key_results_okr_idx').on(table.okrId),
 }));
 
@@ -1614,9 +1668,9 @@ export const yearlyVisions = sqliteTable('yearly_visions', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant (Company-level vision)
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1631,8 +1685,8 @@ export const yearlyVisions = sqliteTable('yearly_visions', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('yearly_visions_org_idx').on(table.organizationId),
-  yearIdx: index('yearly_visions_year_idx').on(table.organizationId, table.year),
+  workspaceIdx: index('yearly_visions_org_idx').on(table.workspaceId),
+  yearIdx: index('yearly_visions_year_idx').on(table.workspaceId, table.year),
 }));
 
 // Vision Milestones table
@@ -1643,9 +1697,9 @@ export const visionMilestones = sqliteTable('vision_milestones', {
     .notNull()
     .references(() => yearlyVisions.id, { onDelete: 'cascade' }),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Milestone Details
   title: text('title', { length: 100 }).notNull(),
@@ -1660,7 +1714,7 @@ export const visionMilestones = sqliteTable('vision_milestones', {
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('vision_milestones_org_idx').on(table.organizationId),
+  workspaceIdx: index('vision_milestones_org_idx').on(table.workspaceId),
   visionIdx: index('vision_milestones_vision_idx').on(table.visionId),
 }));
 
@@ -1669,9 +1723,9 @@ export const weeklyReviews = sqliteTable('weekly_reviews', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant + User-private
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1697,7 +1751,7 @@ export const weeklyReviews = sqliteTable('weekly_reviews', {
   completedAt: text('completed_at').notNull().$defaultFn(() => new Date().toISOString()),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('weekly_reviews_org_idx').on(table.organizationId),
+  workspaceIdx: index('weekly_reviews_org_idx').on(table.workspaceId),
   userIdx: index('weekly_reviews_user_idx').on(table.userId),
   weekStartIdx: index('weekly_reviews_week_start_idx').on(table.userId, table.weekStartDate),
 }));
@@ -1707,9 +1761,9 @@ export const silentTimeBlocks = sqliteTable('silent_time_blocks', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant + User-private
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1727,16 +1781,16 @@ export const silentTimeBlocks = sqliteTable('silent_time_blocks', {
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('silent_time_blocks_org_idx').on(table.organizationId),
+  workspaceIdx: index('silent_time_blocks_org_idx').on(table.workspaceId),
   userIdx: index('silent_time_blocks_user_idx').on(table.userId),
   dateIdx: index('silent_time_blocks_date_idx').on(table.userId, table.date),
 }));
 
 // Relations for Planning System
 export const monthlyActivitiesRelations = relations(monthlyActivities, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [monthlyActivities.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [monthlyActivities.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [monthlyActivities.userId],
@@ -1749,9 +1803,9 @@ export const monthlyActivitiesRelations = relations(monthlyActivities, ({ one })
 }));
 
 export const quarterlyOKRsRelations = relations(quarterlyOKRs, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [quarterlyOKRs.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [quarterlyOKRs.workspaceId],
+    references: [workspaces.id],
   }),
   creator: one(users, {
     fields: [quarterlyOKRs.userId],
@@ -1769,16 +1823,16 @@ export const keyResultsRelations = relations(keyResults, ({ one }) => ({
     fields: [keyResults.okrId],
     references: [quarterlyOKRs.id],
   }),
-  organization: one(organizations, {
-    fields: [keyResults.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [keyResults.workspaceId],
+    references: [workspaces.id],
   }),
 }));
 
 export const yearlyVisionsRelations = relations(yearlyVisions, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [yearlyVisions.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [yearlyVisions.workspaceId],
+    references: [workspaces.id],
   }),
   creator: one(users, {
     fields: [yearlyVisions.userId],
@@ -1792,16 +1846,16 @@ export const visionMilestonesRelations = relations(visionMilestones, ({ one }) =
     fields: [visionMilestones.visionId],
     references: [yearlyVisions.id],
   }),
-  organization: one(organizations, {
-    fields: [visionMilestones.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [visionMilestones.workspaceId],
+    references: [workspaces.id],
   }),
 }));
 
 export const weeklyReviewsRelations = relations(weeklyReviews, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [weeklyReviews.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [weeklyReviews.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [weeklyReviews.userId],
@@ -1810,9 +1864,9 @@ export const weeklyReviewsRelations = relations(weeklyReviews, ({ one }) => ({
 }));
 
 export const silentTimeBlocksRelations = relations(silentTimeBlocks, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [silentTimeBlocks.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [silentTimeBlocks.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [silentTimeBlocks.userId],
@@ -1851,9 +1905,9 @@ export const offerTemplates = sqliteTable('offer_templates', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1877,7 +1931,7 @@ export const offerTemplates = sqliteTable('offer_templates', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('offer_templates_org_idx').on(table.organizationId),
+  workspaceIdx: index('offer_templates_org_idx').on(table.workspaceId),
   categoryIdx: index('offer_templates_category_idx').on(table.category),
 }));
 
@@ -1886,9 +1940,9 @@ export const offers = sqliteTable('offers', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -1934,7 +1988,7 @@ export const offers = sqliteTable('offers', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  organizationIdx: index('offers_org_idx').on(table.organizationId),
+  workspaceIdx: index('offers_org_idx').on(table.workspaceId),
   clientIdx: index('offers_client_idx').on(table.clientId),
   statusIdx: index('offers_status_idx').on(table.status),
   shareLinkIdx: uniqueIndex('offers_share_link_idx').on(table.uniqueShareLink),
@@ -1949,9 +2003,9 @@ export const offerVersions = sqliteTable('offer_versions', {
     .notNull()
     .references(() => offers.id, { onDelete: 'cascade' }),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Version Details
   versionNumber: integer('version_number').notNull(), // 1, 2, 3...
@@ -1964,7 +2018,7 @@ export const offerVersions = sqliteTable('offer_versions', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   offerIdx: index('offer_versions_offer_idx').on(table.offerId),
-  organizationIdx: index('offer_versions_org_idx').on(table.organizationId),
+  workspaceIdx: index('offer_versions_org_idx').on(table.workspaceId),
 }));
 
 // Offer Activities table (Track offer interactions and history)
@@ -1975,9 +2029,9 @@ export const offerActivities = sqliteTable('offer_activities', {
     .notNull()
     .references(() => offers.id, { onDelete: 'cascade' }),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Activity Details
   activityType: text('activity_type', { length: 50 }).notNull(), // 'created', 'sent', 'viewed', 'accepted', 'declined', 'edited', 'downloaded'
@@ -1989,15 +2043,15 @@ export const offerActivities = sqliteTable('offer_activities', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   offerIdx: index('offer_activities_offer_idx').on(table.offerId),
-  organizationIdx: index('offer_activities_org_idx').on(table.organizationId),
+  workspaceIdx: index('offer_activities_org_idx').on(table.workspaceId),
   activityTypeIdx: index('offer_activities_type_idx').on(table.activityType),
 }));
 
 // Relations for Offers System
 export const offerTemplatesRelations = relations(offerTemplates, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [offerTemplates.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [offerTemplates.workspaceId],
+    references: [workspaces.id],
   }),
   creator: one(users, {
     fields: [offerTemplates.userId],
@@ -2007,9 +2061,9 @@ export const offerTemplatesRelations = relations(offerTemplates, ({ one, many })
 }));
 
 export const offersRelations = relations(offers, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [offers.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [offers.workspaceId],
+    references: [workspaces.id],
   }),
   creator: one(users, {
     fields: [offers.userId],
@@ -2032,9 +2086,9 @@ export const offerVersionsRelations = relations(offerVersions, ({ one }) => ({
     fields: [offerVersions.offerId],
     references: [offers.id],
   }),
-  organization: one(organizations, {
-    fields: [offerVersions.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [offerVersions.workspaceId],
+    references: [workspaces.id],
   }),
   createdByUser: one(users, {
     fields: [offerVersions.createdBy],
@@ -2047,9 +2101,9 @@ export const offerActivitiesRelations = relations(offerActivities, ({ one }) => 
     fields: [offerActivities.offerId],
     references: [offers.id],
   }),
-  organization: one(organizations, {
-    fields: [offerActivities.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [offerActivities.workspaceId],
+    references: [workspaces.id],
   }),
   performedByUser: one(users, {
     fields: [offerActivities.performedBy],
@@ -2079,9 +2133,9 @@ export const executionLogs = sqliteTable('execution_logs', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant (USER-PRIVATE)
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -2118,9 +2172,9 @@ export const newConnections = sqliteTable('new_connections', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant (USER-PRIVATE)
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -2156,9 +2210,9 @@ export const connectionGoals = sqliteTable('connection_goals', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant (USER-PRIVATE)
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -2180,9 +2234,9 @@ export const contentExecutionLogs = sqliteTable('content_execution_logs', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant (USER-PRIVATE)
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -2220,9 +2274,9 @@ export const executionStreaks = sqliteTable('execution_streaks', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant (USER-PRIVATE)
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -2249,9 +2303,9 @@ export const loomVideos = sqliteTable('loom_videos', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
   // Multi-tenant
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -2269,7 +2323,7 @@ export const loomVideos = sqliteTable('loom_videos', {
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  orgIdx: index('loom_videos_org_idx').on(table.organizationId),
+  orgIdx: index('loom_videos_org_idx').on(table.workspaceId),
 }));
 
 // ============================================
@@ -2280,9 +2334,9 @@ export const loomVideos = sqliteTable('loom_videos', {
 export const teamMembers = sqliteTable('team_members', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -2304,7 +2358,7 @@ export const teamMembers = sqliteTable('team_members', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  teamMembersOrgIdx: index('team_members_org_idx').on(table.organizationId),
+  teamMembersOrgIdx: index('team_members_org_idx').on(table.workspaceId),
   teamMembersUserIdx: index('team_members_user_idx').on(table.userId),
 }));
 
@@ -2312,9 +2366,9 @@ export const teamMembers = sqliteTable('team_members', {
 export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   createdBy: text('created_by')
     .notNull()
@@ -2349,7 +2403,7 @@ export const tasks = sqliteTable('tasks', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  tasksOrgIdx: index('tasks_org_idx').on(table.organizationId),
+  tasksOrgIdx: index('tasks_org_idx').on(table.workspaceId),
   tasksAssignedIdx: index('tasks_assigned_idx').on(table.assignedTo),
   tasksStatusIdx: index('tasks_status_idx').on(table.status),
 }));
@@ -2358,9 +2412,9 @@ export const tasks = sqliteTable('tasks', {
 export const activityFeed = sqliteTable('activity_feed', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -2375,7 +2429,7 @@ export const activityFeed = sqliteTable('activity_feed', {
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  activityFeedOrgIdx: index('activity_feed_org_idx').on(table.organizationId),
+  activityFeedOrgIdx: index('activity_feed_org_idx').on(table.workspaceId),
   activityFeedCreatedIdx: index('activity_feed_created_idx').on(table.createdAt),
 }));
 
@@ -2383,9 +2437,9 @@ export const activityFeed = sqliteTable('activity_feed', {
 export const comments = sqliteTable('comments', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -2409,16 +2463,16 @@ export const comments = sqliteTable('comments', {
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   commentsEntityIdx: index('comments_entity_idx').on(table.entityType, table.entityId),
-  commentsOrgIdx: index('comments_org_idx').on(table.organizationId),
+  commentsOrgIdx: index('comments_org_idx').on(table.workspaceId),
 }));
 
 // Notifications table
 export const notifications = sqliteTable('notifications', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   userId: text('user_id')
     .notNull()
@@ -2444,9 +2498,9 @@ export const notifications = sqliteTable('notifications', {
 export const conversations = sqliteTable('conversations', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // Conversation Type
   type: text('type', { length: 20 }).notNull(), // 'direct', 'group', 'announcement'
@@ -2457,16 +2511,16 @@ export const conversations = sqliteTable('conversations', {
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
-  conversationsOrgIdx: index('conversations_org_idx').on(table.organizationId),
+  conversationsOrgIdx: index('conversations_org_idx').on(table.workspaceId),
 }));
 
 // Messages table
 export const messages = sqliteTable('messages', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
-  organizationId: text('organization_id')
+  workspaceId: text('workspace_id')
     .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
 
   conversationId: text('conversation_id')
     .notNull()
@@ -2488,9 +2542,9 @@ export const messages = sqliteTable('messages', {
 
 // Relations for Execution Tracking
 export const executionLogsRelations = relations(executionLogs, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [executionLogs.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [executionLogs.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [executionLogs.userId],
@@ -2503,9 +2557,9 @@ export const executionLogsRelations = relations(executionLogs, ({ one }) => ({
 }));
 
 export const newConnectionsRelations = relations(newConnections, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [newConnections.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [newConnections.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [newConnections.userId],
@@ -2518,9 +2572,9 @@ export const newConnectionsRelations = relations(newConnections, ({ one }) => ({
 }));
 
 export const connectionGoalsRelations = relations(connectionGoals, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [connectionGoals.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [connectionGoals.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [connectionGoals.userId],
@@ -2529,9 +2583,9 @@ export const connectionGoalsRelations = relations(connectionGoals, ({ one }) => 
 }));
 
 export const contentExecutionLogsRelations = relations(contentExecutionLogs, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [contentExecutionLogs.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [contentExecutionLogs.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [contentExecutionLogs.userId],
@@ -2544,9 +2598,9 @@ export const contentExecutionLogsRelations = relations(contentExecutionLogs, ({ 
 }));
 
 export const executionStreaksRelations = relations(executionStreaks, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [executionStreaks.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [executionStreaks.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [executionStreaks.userId],
@@ -2555,9 +2609,9 @@ export const executionStreaksRelations = relations(executionStreaks, ({ one }) =
 }));
 
 export const loomVideosRelations = relations(loomVideos, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [loomVideos.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [loomVideos.workspaceId],
+    references: [workspaces.id],
   }),
   creator: one(users, {
     fields: [loomVideos.userId],
@@ -2586,9 +2640,9 @@ export type NewLoomVideo = typeof loomVideos.$inferInsert;
 
 // Relations for Team & Collaboration
 export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [teamMembers.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [teamMembers.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [teamMembers.userId],
@@ -2601,9 +2655,9 @@ export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
 }));
 
 export const tasksRelations = relations(tasks, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [tasks.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [tasks.workspaceId],
+    references: [workspaces.id],
   }),
   creator: one(users, {
     fields: [tasks.createdBy],
@@ -2617,9 +2671,9 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
 }));
 
 export const activityFeedRelations = relations(activityFeed, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [activityFeed.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [activityFeed.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [activityFeed.userId],
@@ -2628,9 +2682,9 @@ export const activityFeedRelations = relations(activityFeed, ({ one }) => ({
 }));
 
 export const commentsRelations = relations(comments, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [comments.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [comments.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [comments.userId],
@@ -2644,9 +2698,9 @@ export const commentsRelations = relations(comments, ({ one, many }) => ({
 }));
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [notifications.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [notifications.workspaceId],
+    references: [workspaces.id],
   }),
   user: one(users, {
     fields: [notifications.userId],
@@ -2655,17 +2709,17 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [conversations.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [conversations.workspaceId],
+    references: [workspaces.id],
   }),
   messages: many(messages),
 }));
 
 export const messagesRelations = relations(messages, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [messages.organizationId],
-    references: [organizations.id],
+  workspace: one(workspaces, {
+    fields: [messages.workspaceId],
+    references: [workspaces.id],
   }),
   conversation: one(conversations, {
     fields: [messages.conversationId],

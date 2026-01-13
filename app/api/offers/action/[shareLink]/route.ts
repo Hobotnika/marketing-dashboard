@@ -82,7 +82,7 @@ export async function POST(
       // Log activity
       await db.insert(offerActivities).values({
         offerId: existingOffer.id,
-        organizationId: existingOffer.organizationId,
+        workspaceId: existingOffer.workspaceId,
         activityType: 'accepted',
         performedBy: null, // Client action
         ipAddress,
@@ -98,7 +98,7 @@ export async function POST(
           .where(
             and(
               eq(offers.templateId, existingOffer.templateId),
-              eq(offers.organizationId, existingOffer.organizationId)
+              eq(offers.workspaceId, existingOffer.workspaceId)
             )
           );
 
@@ -146,7 +146,7 @@ export async function POST(
       // Log activity
       await db.insert(offerActivities).values({
         offerId: existingOffer.id,
-        organizationId: existingOffer.organizationId,
+        workspaceId: existingOffer.workspaceId,
         activityType: 'declined',
         performedBy: null, // Client action
         ipAddress,
@@ -162,7 +162,7 @@ export async function POST(
           .where(
             and(
               eq(offers.templateId, existingOffer.templateId),
-              eq(offers.organizationId, existingOffer.organizationId)
+              eq(offers.workspaceId, existingOffer.workspaceId)
             )
           );
 

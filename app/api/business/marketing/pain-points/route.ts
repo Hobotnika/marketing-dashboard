@@ -12,11 +12,11 @@ import { eq, and, asc } from 'drizzle-orm';
  */
 export const GET = withTenantSecurity(async (request: Request, context) => {
   try {
-    console.log('[Marketing/PainPoints] Fetching for org:', context.organizationId);
+    console.log('[Marketing/PainPoints] Fetching for org:', context.workspaceId);
 
     // Get the message framework first
     const framework = await db.query.messageFrameworks.findFirst({
-      where: eq(messageFrameworks.organizationId, context.organizationId),
+      where: eq(messageFrameworks.workspaceId, context.workspaceId),
     });
 
     if (!framework) {
@@ -31,7 +31,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
     // Get pain points
     const painPointsList = await db.query.painPoints.findMany({
       where: and(
-        eq(painPoints.organizationId, context.organizationId),
+        eq(painPoints.workspaceId, context.workspaceId),
         eq(painPoints.messageFrameworkId, framework.id)
       ),
       orderBy: [asc(painPoints.displayOrder)],
@@ -79,11 +79,11 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       );
     }
 
-    console.log('[Marketing/PainPoints] Creating for org:', context.organizationId);
+    console.log('[Marketing/PainPoints] Creating for org:', context.workspaceId);
 
     // Get or create message framework
     let framework = await db.query.messageFrameworks.findFirst({
-      where: eq(messageFrameworks.organizationId, context.organizationId),
+      where: eq(messageFrameworks.workspaceId, context.workspaceId),
     });
 
     if (!framework) {
@@ -92,7 +92,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       const [created] = await db
         .insert(messageFrameworks)
         .values({
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           userId: context.userId,
         })
         .returning();
@@ -104,7 +104,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
     const [newPainPoint] = await db
       .insert(painPoints)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         messageFrameworkId: framework.id,
         description,
         displayOrder: displayOrder || 0,
@@ -153,7 +153,7 @@ export const DELETE = withTenantSecurity(async (request: Request, context) => {
     }
 
     console.log('[Marketing/PainPoints] Deleting ID:', id);
-    console.log('[Marketing/PainPoints] Organization:', context.organizationId);
+    console.log('[Marketing/PainPoints] Organization:', context.workspaceId);
 
     // Delete pain point (with organization check for security)
     const result = await db
@@ -161,7 +161,7 @@ export const DELETE = withTenantSecurity(async (request: Request, context) => {
       .where(
         and(
           eq(painPoints.id, id),
-          eq(painPoints.organizationId, context.organizationId)
+          eq(painPoints.workspaceId, context.workspaceId)
         )
       )
       .returning();

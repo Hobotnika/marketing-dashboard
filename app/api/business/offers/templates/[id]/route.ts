@@ -18,7 +18,7 @@ export async function GET(
     const template = await db.query.offerTemplates.findFirst({
       where: and(
         eq(offerTemplates.id, params.id),
-        eq(offerTemplates.organizationId, context.organizationId)
+        eq(offerTemplates.workspaceId, context.workspaceId)
       ),
     });
 
@@ -59,7 +59,7 @@ export async function PATCH(
     const existingTemplate = await db.query.offerTemplates.findFirst({
       where: and(
         eq(offerTemplates.id, params.id),
-        eq(offerTemplates.organizationId, context.organizationId)
+        eq(offerTemplates.workspaceId, context.workspaceId)
       ),
     });
 
@@ -120,7 +120,7 @@ export async function PATCH(
       .where(
         and(
           eq(offerTemplates.id, params.id),
-          eq(offerTemplates.organizationId, context.organizationId)
+          eq(offerTemplates.workspaceId, context.workspaceId)
         )
       )
       .returning();
@@ -155,7 +155,7 @@ export async function DELETE(
     const existingTemplate = await db.query.offerTemplates.findFirst({
       where: and(
         eq(offerTemplates.id, params.id),
-        eq(offerTemplates.organizationId, context.organizationId)
+        eq(offerTemplates.workspaceId, context.workspaceId)
       ),
     });
 
@@ -173,7 +173,7 @@ export async function DELETE(
       .where(
         and(
           eq(offers.templateId, params.id),
-          eq(offers.organizationId, context.organizationId)
+          eq(offers.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -201,7 +201,7 @@ export async function DELETE(
       .where(
         and(
           eq(offerTemplates.id, params.id),
-          eq(offerTemplates.organizationId, context.organizationId)
+          eq(offerTemplates.workspaceId, context.workspaceId)
         )
       );
 

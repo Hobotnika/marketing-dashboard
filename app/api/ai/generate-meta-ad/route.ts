@@ -47,8 +47,8 @@ export async function POST(request: Request) {
           and(
             eq(aiPrompts.id, prompt_id),
             or(
-              eq(aiPrompts.organizationId, context.organizationId),
-              isNull(aiPrompts.organizationId)
+              eq(aiPrompts.workspaceId, context.workspaceId),
+              isNull(aiPrompts.workspaceId)
             ),
             eq(aiPrompts.category, 'meta_ads'),
             eq(aiPrompts.isActive, true)
@@ -65,14 +65,14 @@ export async function POST(request: Request) {
           and(
             eq(aiPrompts.category, 'meta_ads'),
             or(
-              eq(aiPrompts.organizationId, context.organizationId),
-              isNull(aiPrompts.organizationId)
+              eq(aiPrompts.workspaceId, context.workspaceId),
+              isNull(aiPrompts.workspaceId)
             ),
             eq(aiPrompts.isDefault, true),
             eq(aiPrompts.isActive, true)
           )
         )
-        .orderBy(aiPrompts.organizationId) // Org prompts before system prompts
+        .orderBy(aiPrompts.workspaceId) // Org prompts before system prompts
         .limit(1);
 
       prompt = prompts[0];
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 
     if (!prompt) {
       console.error('[Meta Ad] No active Meta Ads prompt found');
-      console.error('[Meta Ad] Organization ID:', context.organizationId);
+      console.error('[Meta Ad] Organization ID:', context.workspaceId);
       console.error('[Meta Ad] Prompt ID requested:', prompt_id);
       return NextResponse.json(
         { error: 'No active Meta Ads prompt found. Please create a prompt or contact support.' },
@@ -92,12 +92,12 @@ export async function POST(request: Request) {
     const [organization] = await db
       .select()
       .from(organizations)
-      .where(eq(organizations.id, context.organizationId))
+      .where(eq(workspaces.id, context.workspaceId))
       .limit(1);
 
     if (!organization) {
       console.error('[Meta Ad] Organization not found in database');
-      console.error('[Meta Ad] Organization ID:', context.organizationId);
+      console.error('[Meta Ad] Organization ID:', context.workspaceId);
       return NextResponse.json(
         { error: 'Organization not found' },
         { status: 404 }
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
 
     if (!brandVoice) {
       console.error('[Meta Ad] Brand voice not configured');
-      console.error('[Meta Ad] Organization ID:', context.organizationId);
+      console.error('[Meta Ad] Organization ID:', context.workspaceId);
       console.error('[Meta Ad] Organization name:', organization.name);
       console.error('[Meta Ad] Brand voice profile value:', organization.brandVoiceProfile);
       return NextResponse.json(

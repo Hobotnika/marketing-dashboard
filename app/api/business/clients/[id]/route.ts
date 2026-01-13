@@ -27,7 +27,7 @@ export async function GET(
     const client = await db.query.clients.findFirst({
       where: and(
         eq(clients.id, id),
-        eq(clients.organizationId, context.organizationId)
+        eq(clients.workspaceId, context.workspaceId)
       ),
     });
 
@@ -100,7 +100,7 @@ export async function PATCH(
     const existingClient = await db.query.clients.findFirst({
       where: and(
         eq(clients.id, id),
-        eq(clients.organizationId, context.organizationId)
+        eq(clients.workspaceId, context.workspaceId)
       ),
     });
 
@@ -120,7 +120,7 @@ export async function PATCH(
       .where(
         and(
           eq(clients.id, id),
-          eq(clients.organizationId, context.organizationId)
+          eq(clients.workspaceId, context.workspaceId)
         )
       )
       .returning();
@@ -159,7 +159,7 @@ export async function DELETE(
     const existingClient = await db.query.clients.findFirst({
       where: and(
         eq(clients.id, id),
-        eq(clients.organizationId, context.organizationId)
+        eq(clients.workspaceId, context.workspaceId)
       ),
     });
 
@@ -173,7 +173,7 @@ export async function DELETE(
       .where(
         and(
           eq(clients.id, id),
-          eq(clients.organizationId, context.organizationId)
+          eq(clients.workspaceId, context.workspaceId)
         )
       );
 

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const year = searchParams.get('year'); // YYYY
 
     // Build query conditions (company-level: filter by org only)
-    let conditions = [eq(yearlyVisions.organizationId, context.organizationId)];
+    let conditions = [eq(yearlyVisions.workspaceId, context.workspaceId)];
 
     if (year) {
       conditions.push(eq(yearlyVisions.year, parseInt(year)));
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     const newVision = await db
       .insert(yearlyVisions)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId, // Creator
         year: parseInt(year),
         visionStatement,
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
           .insert(visionMilestones)
           .values({
             visionId: newVision[0].id,
-            organizationId: context.organizationId,
+            workspaceId: context.workspaceId,
             milestoneTitle: milestone.milestoneTitle,
             targetDate: milestone.targetDate || null,
             category: milestone.category || null,

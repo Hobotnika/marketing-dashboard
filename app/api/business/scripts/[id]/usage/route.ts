@@ -37,7 +37,7 @@ export async function POST(
     const script = await db.query.dmScripts.findFirst({
       where: and(
         eq(dmScripts.id, scriptId),
-        eq(dmScripts.organizationId, context.organizationId)
+        eq(dmScripts.workspaceId, context.workspaceId)
       ),
     });
 
@@ -52,7 +52,7 @@ export async function POST(
     const usageLog = await db
       .insert(scriptUsageLogs)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         scriptId,
         userId: context.userId,
         clientId: clientId || null,
@@ -126,7 +126,7 @@ export async function GET(
     const script = await db.query.dmScripts.findFirst({
       where: and(
         eq(dmScripts.id, scriptId),
-        eq(dmScripts.organizationId, context.organizationId)
+        eq(dmScripts.workspaceId, context.workspaceId)
       ),
     });
 
@@ -141,7 +141,7 @@ export async function GET(
     const logs = await db.query.scriptUsageLogs.findMany({
       where: and(
         eq(scriptUsageLogs.scriptId, scriptId),
-        eq(scriptUsageLogs.organizationId, context.organizationId)
+        eq(scriptUsageLogs.workspaceId, context.workspaceId)
       ),
       orderBy: (scriptUsageLogs, { desc }) => [desc(scriptUsageLogs.usedAt)],
     });

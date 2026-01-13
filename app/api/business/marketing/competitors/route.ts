@@ -12,12 +12,12 @@ import { eq, and, desc } from 'drizzle-orm';
  */
 export const GET = withTenantSecurity(async (request: Request, context) => {
   try {
-    console.log('[Marketing/Competitors] Fetching for org:', context.organizationId);
+    console.log('[Marketing/Competitors] Fetching for org:', context.workspaceId);
 
     const competitorsList = await db
       .select()
       .from(competitors)
-      .where(eq(competitors.organizationId, context.organizationId))
+      .where(eq(competitors.workspaceId, context.workspaceId))
       .orderBy(desc(competitors.createdAt));
 
     console.log('[Marketing/Competitors] Found', competitorsList.length, 'competitors');
@@ -66,14 +66,14 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       );
     }
 
-    console.log('[Marketing/Competitors] Creating for org:', context.organizationId);
+    console.log('[Marketing/Competitors] Creating for org:', context.workspaceId);
     console.log('[Marketing/Competitors] Name:', name);
 
     // Create competitor
     const [newCompetitor] = await db
       .insert(competitors)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         name,
         website: website || null,
@@ -135,7 +135,7 @@ export const PATCH = withTenantSecurity(async (request: Request, context) => {
     const { name, website, description, strengths, weaknesses } = body;
 
     console.log('[Marketing/Competitors] Updating ID:', id);
-    console.log('[Marketing/Competitors] Organization:', context.organizationId);
+    console.log('[Marketing/Competitors] Organization:', context.workspaceId);
 
     // Prepare update object
     const updateData: any = {
@@ -163,7 +163,7 @@ export const PATCH = withTenantSecurity(async (request: Request, context) => {
       .where(
         and(
           eq(competitors.id, id),
-          eq(competitors.organizationId, context.organizationId)
+          eq(competitors.workspaceId, context.workspaceId)
         )
       )
       .returning();
@@ -217,7 +217,7 @@ export const DELETE = withTenantSecurity(async (request: Request, context) => {
     }
 
     console.log('[Marketing/Competitors] Deleting ID:', id);
-    console.log('[Marketing/Competitors] Organization:', context.organizationId);
+    console.log('[Marketing/Competitors] Organization:', context.workspaceId);
 
     // Delete competitor (with organization check for security)
     const result = await db
@@ -225,7 +225,7 @@ export const DELETE = withTenantSecurity(async (request: Request, context) => {
       .where(
         and(
           eq(competitors.id, id),
-          eq(competitors.organizationId, context.organizationId)
+          eq(competitors.workspaceId, context.workspaceId)
         )
       )
       .returning();

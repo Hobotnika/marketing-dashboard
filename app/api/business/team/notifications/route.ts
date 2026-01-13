@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     // Build query
     let conditions = [
       eq(notifications.userId, context.userId),
-      eq(notifications.organizationId, context.organizationId),
+      eq(notifications.workspaceId, context.workspaceId),
     ];
 
     if (unreadOnly) {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           eq(notifications.userId, context.userId),
-          eq(notifications.organizationId, context.organizationId),
+          eq(notifications.workspaceId, context.workspaceId),
           eq(notifications.isRead, false)
         )
       );
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(notifications.userId, context.userId),
-            eq(notifications.organizationId, context.organizationId),
+            eq(notifications.workspaceId, context.workspaceId),
             eq(notifications.isRead, false)
           )
         );
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
           and(
             eq(notifications.id, notificationId),
             eq(notifications.userId, context.userId),
-            eq(notifications.organizationId, context.organizationId)
+            eq(notifications.workspaceId, context.workspaceId)
           )
         )
         .returning();

@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       .leftJoin(users, eq(teamMembers.userId, users.id))
       .where(
         and(
-          eq(teamMembers.organizationId, context.organizationId),
+          eq(teamMembers.workspaceId, context.workspaceId),
           eq(teamMembers.status, 'active')
         )
       );
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     const allTasks = await db
       .select()
       .from(tasks)
-      .where(eq(tasks.organizationId, context.organizationId));
+      .where(eq(tasks.workspaceId, context.workspaceId));
 
     // Fetch tasks in date range
     const recentTasks = await db
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       .from(tasks)
       .where(
         and(
-          eq(tasks.organizationId, context.organizationId),
+          eq(tasks.workspaceId, context.workspaceId),
           gte(tasks.createdAt, startDateStr)
         )
       );
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
       .from(activityFeed)
       .where(
         and(
-          eq(activityFeed.organizationId, context.organizationId),
+          eq(activityFeed.workspaceId, context.workspaceId),
           gte(activityFeed.createdAt, startDateStr)
         )
       );
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
       .from(comments)
       .where(
         and(
-          eq(comments.organizationId, context.organizationId),
+          eq(comments.workspaceId, context.workspaceId),
           gte(comments.createdAt, startDateStr)
         )
       );

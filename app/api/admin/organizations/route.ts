@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { organizations, users } from '@/lib/db/schema';
+import { workspaces, users } from '@/lib/db/schema';
 import { isSuperAdmin } from '@/lib/auth/super-admin';
 import { encrypt } from '@/lib/db/encryption';
 import bcrypt from 'bcryptjs';
@@ -19,7 +19,7 @@ export async function GET() {
     }
 
     // Fetch all organizations with users
-    const allOrganizations = await db.query.organizations.findMany({
+    const allOrganizations = await db.query.workspaces.findMany({
       with: {
         users: true,
       },
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if subdomain already exists
-    const existingOrg = await db.query.organizations.findFirst({
+    const existingOrg = await db.query.workspaces.findFirst({
       where: (orgs, { eq }) => eq(orgs.subdomain, subdomain),
     });
 
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
           email: adminEmail,
           passwordHash,
           name: adminName,
-          organizationId: newOrg.id,
+          workspaceId: newOrg.id,
           role: 'admin',
         })
         .returning();

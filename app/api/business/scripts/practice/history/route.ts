@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     // Build query conditions
     let conditions = [
-      eq(practiceSessions.organizationId, context.organizationId),
+      eq(practiceSessions.workspaceId, context.workspaceId),
       eq(practiceSessions.userId, context.userId), // User-private
     ];
 

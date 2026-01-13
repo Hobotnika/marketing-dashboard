@@ -10,9 +10,9 @@ import type { Avatar, AvatarPersonaData } from '@/types/avatar';
  */
 export async function GET(request: NextRequest) {
   try {
-    const organizationId = request.headers.get('x-organization-id');
+    const workspaceId = request.headers.get('x-workspace-id');
 
-    if (!organizationId) {
+    if (!workspaceId) {
       return NextResponse.json(
         { success: false, error: 'Organization ID not found' },
         { status: 400 }
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       .from(customerAvatars)
       .where(
         and(
-          eq(customerAvatars.organizationId, organizationId),
+          eq(customerAvatars.workspaceId, workspaceId),
           eq(customerAvatars.isActive, true)
         )
       )
@@ -82,9 +82,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const organizationId = request.headers.get('x-organization-id');
+    const workspaceId = request.headers.get('x-workspace-id');
 
-    if (!organizationId) {
+    if (!workspaceId) {
       return NextResponse.json(
         { success: false, error: 'Organization ID not found' },
         { status: 400 }
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       .from(customerAvatars)
       .where(
         and(
-          eq(customerAvatars.organizationId, organizationId),
+          eq(customerAvatars.workspaceId, workspaceId),
           eq(customerAvatars.setName, setName)
         )
       )
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       };
 
       return {
-        organizationId,
+        workspaceId,
         setName,
         niche,
         description: description || null,

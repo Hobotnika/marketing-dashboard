@@ -35,7 +35,7 @@ export async function POST(
       .insert(churnRiskInterventions)
       .values({
         clientId: params.id,
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         ...body,
       })

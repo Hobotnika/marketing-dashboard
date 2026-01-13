@@ -1,38 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { organizations } from '@/lib/db/schema';
+import { workspaces } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { parseBrandVoice, stringifyBrandVoice, validateBrandVoice, type BrandVoiceProfile } from '@/lib/utils/brand-voice';
 
 /**
  * GET /api/organization/brand-voice
- * Fetch the organization's brand voice profile
+ * Fetch the workspace's brand voice profile
  */
 export async function GET(request: NextRequest) {
   try {
-    const organizationId = request.headers.get('x-organization-id');
+    const workspaceId = request.headers.get('x-workspace-id');
 
-    if (!organizationId) {
+    if (!workspaceId) {
       return NextResponse.json(
-        { success: false, error: 'Organization ID not found' },
+        { success: false, error: 'Workspace ID not found' },
         { status: 400 }
       );
     }
 
-    const [organization] = await db
+    const [workspace] = await db
       .select()
-      .from(organizations)
-      .where(eq(organizations.id, organizationId))
+      .from(workspaces)
+      .where(eq(workspaces.id, workspaceId))
       .limit(1);
 
-    if (!organization) {
+    if (!workspace) {
       return NextResponse.json(
-        { success: false, error: 'Organization not found' },
+        { success: false, error: 'Workspace not found' },
         { status: 404 }
       );
     }
 
-    const brandVoice = parseBrandVoice(organization.brandVoiceProfile);
+    const brandVoice = parseBrandVoice(workspace.brandVoiceProfile);
 
     return NextResponse.json({
       success: true,
@@ -49,15 +49,15 @@ export async function GET(request: NextRequest) {
 
 /**
  * PUT /api/organization/brand-voice
- * Update the organization's brand voice profile
+ * Update the workspace's brand voice profile
  */
 export async function PUT(request: NextRequest) {
   try {
-    const organizationId = request.headers.get('x-organization-id');
+    const workspaceId = request.headers.get('x-workspace-id');
 
-    if (!organizationId) {
+    if (!workspaceId) {
       return NextResponse.json(
-        { success: false, error: 'Organization ID not found' },
+        { success: false, error: 'Workspace ID not found' },
         { status: 400 }
       );
     }
@@ -73,14 +73,14 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Update organization
+    // Update workspace
     await db
-      .update(organizations)
+      .update(workspaces)
       .set({
         brandVoiceProfile: stringifyBrandVoice(brandVoice),
         updatedAt: new Date().toISOString(),
       })
-      .where(eq(organizations.id, organizationId));
+      .where(eq(workspaces.id, workspaceId));
 
     return NextResponse.json({
       success: true,

@@ -25,7 +25,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
     startDate.setDate(startDate.getDate() - days);
     const startDateStr = startDate.toISOString().split('T')[0];
 
-    console.log('[Financial/Income] Fetching for org:', context.organizationId);
+    console.log('[Financial/Income] Fetching for org:', context.workspaceId);
     console.log('[Financial/Income] Date range:', startDateStr, 'to today');
     if (sourceFilter) {
       console.log('[Financial/Income] Source filter:', sourceFilter);
@@ -33,7 +33,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
 
     // Build query conditions
     const conditions = [
-      eq(incomeActivities.organizationId, context.organizationId),
+      eq(incomeActivities.workspaceId, context.workspaceId),
       gte(incomeActivities.date, startDateStr)
     ];
 
@@ -130,7 +130,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
     }
 
     console.log('[Financial/Income] Creating for date:', date);
-    console.log('[Financial/Income] Organization:', context.organizationId);
+    console.log('[Financial/Income] Organization:', context.workspaceId);
     console.log('[Financial/Income] User:', context.userId);
     console.log('[Financial/Income] Source:', source, 'Amount:', amount);
 
@@ -138,7 +138,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
     const [newActivity] = await db
       .insert(incomeActivities)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         date,
         source,
@@ -190,7 +190,7 @@ export const DELETE = withTenantSecurity(async (request: Request, context) => {
     }
 
     console.log('[Financial/Income] Deleting ID:', id);
-    console.log('[Financial/Income] Organization:', context.organizationId);
+    console.log('[Financial/Income] Organization:', context.workspaceId);
 
     // Delete activity (with organization check for security)
     const result = await db
@@ -198,7 +198,7 @@ export const DELETE = withTenantSecurity(async (request: Request, context) => {
       .where(
         and(
           eq(incomeActivities.id, id),
-          eq(incomeActivities.organizationId, context.organizationId)
+          eq(incomeActivities.workspaceId, context.workspaceId)
         )
       )
       .returning();

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     let query = db
       .select()
       .from(visionMilestones)
-      .where(eq(visionMilestones.organizationId, context.organizationId));
+      .where(eq(visionMilestones.workspaceId, context.workspaceId));
 
     if (visionId) {
       query = db
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
         .from(visionMilestones)
         .where(
           and(
-            eq(visionMilestones.organizationId, context.organizationId),
+            eq(visionMilestones.workspaceId, context.workspaceId),
             eq(visionMilestones.visionId, visionId)
           )
         );
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       .where(
         and(
           eq(yearlyVisions.id, visionId),
-          eq(yearlyVisions.organizationId, context.organizationId)
+          eq(yearlyVisions.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       .insert(visionMilestones)
       .values({
         visionId,
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         milestoneTitle,
         targetDate: targetDate || null,
         category: category || null,
@@ -162,7 +162,7 @@ export async function PATCH(request: NextRequest) {
       .where(
         and(
           eq(visionMilestones.id, milestoneId),
-          eq(visionMilestones.organizationId, context.organizationId)
+          eq(visionMilestones.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -192,7 +192,7 @@ export async function PATCH(request: NextRequest) {
       .where(
         and(
           eq(visionMilestones.id, milestoneId),
-          eq(visionMilestones.organizationId, context.organizationId)
+          eq(visionMilestones.workspaceId, context.workspaceId)
         )
       )
       .returning();

@@ -12,9 +12,9 @@ export async function DELETE(
   { params }: { params: Promise<{ setName: string }> }
 ) {
   try {
-    const organizationId = request.headers.get('x-organization-id');
+    const workspaceId = request.headers.get('x-workspace-id');
 
-    if (!organizationId) {
+    if (!workspaceId) {
       return NextResponse.json(
         { success: false, error: 'Organization ID not found' },
         { status: 400 }
@@ -29,7 +29,7 @@ export async function DELETE(
       .delete(customerAvatars)
       .where(
         and(
-          eq(customerAvatars.organizationId, organizationId),
+          eq(customerAvatars.workspaceId, workspaceId),
           eq(customerAvatars.setName, setName)
         )
       );

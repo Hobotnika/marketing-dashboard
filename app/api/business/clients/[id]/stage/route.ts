@@ -20,7 +20,7 @@ export async function POST(
     const client = await db.query.clients.findFirst({
       where: and(
         eq(clients.id, id),
-        eq(clients.organizationId, context.organizationId)
+        eq(clients.workspaceId, context.workspaceId)
       ),
     });
 
@@ -41,7 +41,7 @@ export async function POST(
     // Create stage history record
     await db.insert(clientStageHistory).values({
       clientId: id,
-      organizationId: context.organizationId,
+      workspaceId: context.workspaceId,
       userId: context.userId,
       fromStage: client.currentStage,
       toStage,
@@ -59,7 +59,7 @@ export async function POST(
       .where(
         and(
           eq(clients.id, id),
-          eq(clients.organizationId, context.organizationId)
+          eq(clients.workspaceId, context.workspaceId)
         )
       )
       .returning();

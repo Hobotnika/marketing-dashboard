@@ -19,7 +19,7 @@ export async function GET(
     const script = await db.query.dmScripts.findFirst({
       where: and(
         eq(dmScripts.id, id),
-        eq(dmScripts.organizationId, context.organizationId)
+        eq(dmScripts.workspaceId, context.workspaceId)
       ),
     });
 
@@ -65,7 +65,7 @@ export async function PATCH(
     const existingScript = await db.query.dmScripts.findFirst({
       where: and(
         eq(dmScripts.id, id),
-        eq(dmScripts.organizationId, context.organizationId)
+        eq(dmScripts.workspaceId, context.workspaceId)
       ),
     });
 
@@ -97,7 +97,7 @@ export async function PATCH(
       .where(
         and(
           eq(dmScripts.id, id),
-          eq(dmScripts.organizationId, context.organizationId)
+          eq(dmScripts.workspaceId, context.workspaceId)
         )
       )
       .returning();
@@ -136,7 +136,7 @@ export async function DELETE(
     const existingScript = await db.query.dmScripts.findFirst({
       where: and(
         eq(dmScripts.id, id),
-        eq(dmScripts.organizationId, context.organizationId)
+        eq(dmScripts.workspaceId, context.workspaceId)
       ),
     });
 
@@ -160,7 +160,7 @@ export async function DELETE(
       .where(
         and(
           eq(dmScripts.id, id),
-          eq(dmScripts.organizationId, context.organizationId)
+          eq(dmScripts.workspaceId, context.workspaceId)
         )
       );
 

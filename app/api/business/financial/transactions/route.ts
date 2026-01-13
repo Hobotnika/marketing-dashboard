@@ -25,7 +25,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
     startDate.setDate(startDate.getDate() - days);
     const startDateStr = startDate.toISOString().split('T')[0];
 
-    console.log('[Financial/Transactions] Fetching for org:', context.organizationId);
+    console.log('[Financial/Transactions] Fetching for org:', context.workspaceId);
     console.log('[Financial/Transactions] Date range:', startDateStr, 'to today');
     if (categoryFilter) {
       console.log('[Financial/Transactions] Category filter:', categoryFilter);
@@ -33,7 +33,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
 
     // Build query conditions
     const conditions = [
-      eq(transactions.organizationId, context.organizationId),
+      eq(transactions.workspaceId, context.workspaceId),
       gte(transactions.date, startDateStr)
     ];
 
@@ -138,7 +138,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
     }
 
     console.log('[Financial/Transactions] Creating for date:', date);
-    console.log('[Financial/Transactions] Organization:', context.organizationId);
+    console.log('[Financial/Transactions] Organization:', context.workspaceId);
     console.log('[Financial/Transactions] User:', context.userId);
     console.log('[Financial/Transactions] Category:', category, 'Amount:', amount);
 
@@ -146,7 +146,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
     const [newTransaction] = await db
       .insert(transactions)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         date,
         category,
@@ -199,7 +199,7 @@ export const DELETE = withTenantSecurity(async (request: Request, context) => {
     }
 
     console.log('[Financial/Transactions] Deleting ID:', id);
-    console.log('[Financial/Transactions] Organization:', context.organizationId);
+    console.log('[Financial/Transactions] Organization:', context.workspaceId);
 
     // Delete transaction (with organization check for security)
     const result = await db
@@ -207,7 +207,7 @@ export const DELETE = withTenantSecurity(async (request: Request, context) => {
       .where(
         and(
           eq(transactions.id, id),
-          eq(transactions.organizationId, context.organizationId)
+          eq(transactions.workspaceId, context.workspaceId)
         )
       )
       .returning();

@@ -33,9 +33,9 @@ export async function POST(
 
     console.log('[Prediction Engine] Starting for ad:', adId);
 
-    const organizationId = request.headers.get('x-organization-id');
+    const workspaceId = request.headers.get('x-workspace-id');
 
-    if (!organizationId) {
+    if (!workspaceId) {
       return NextResponse.json(
         { error: 'Organization ID not found' },
         { status: 400 }

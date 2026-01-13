@@ -36,7 +36,7 @@ const anthropic = new Anthropic({
 async function fetchSectionData(
   sectionName: string,
   dataInput: string,
-  organizationId: string,
+  workspaceId: string,
   userId: string
 ): Promise<any> {
   // KPIS data fetchers
@@ -48,7 +48,7 @@ async function fetchSectionData(
 
       const snapshots = await db.query.kpiSnapshots.findMany({
         where: and(
-          eq(kpiSnapshots.organizationId, organizationId),
+          eq(kpiSnapshots.workspaceId, workspaceId),
           gte(kpiSnapshots.date, startDateStr)
         ),
         orderBy: [desc(kpiSnapshots.date)],
@@ -64,7 +64,7 @@ async function fetchSectionData(
 
       const snapshots = await db.query.kpiSnapshots.findMany({
         where: and(
-          eq(kpiSnapshots.organizationId, organizationId),
+          eq(kpiSnapshots.workspaceId, workspaceId),
           gte(kpiSnapshots.date, startDateStr)
         ),
         orderBy: [desc(kpiSnapshots.date)],
@@ -84,7 +84,7 @@ async function fetchSectionData(
       // CRITICAL: Filter by BOTH organizationId AND userId for privacy
       const routines = await db.query.dailyRoutines.findMany({
         where: and(
-          eq(dailyRoutines.organizationId, organizationId),
+          eq(dailyRoutines.workspaceId, workspaceId),
           eq(dailyRoutines.userId, userId), // USER-PRIVATE!
           gte(dailyRoutines.date, startDateStr)
         ),
@@ -101,7 +101,7 @@ async function fetchSectionData(
 
       const routines = await db.query.dailyRoutines.findMany({
         where: and(
-          eq(dailyRoutines.organizationId, organizationId),
+          eq(dailyRoutines.workspaceId, workspaceId),
           eq(dailyRoutines.userId, userId), // USER-PRIVATE!
           gte(dailyRoutines.date, startDateStr)
         ),
@@ -121,7 +121,7 @@ async function fetchSectionData(
 
       const income = await db.query.incomeActivities.findMany({
         where: and(
-          eq(incomeActivities.organizationId, organizationId),
+          eq(incomeActivities.workspaceId, workspaceId),
           gte(incomeActivities.date, startDateStr)
         ),
         orderBy: [desc(incomeActivities.date)],
@@ -137,7 +137,7 @@ async function fetchSectionData(
 
       const expenses = await db.query.transactions.findMany({
         where: and(
-          eq(transactions.organizationId, organizationId),
+          eq(transactions.workspaceId, workspaceId),
           gte(transactions.date, startDateStr)
         ),
         orderBy: [desc(transactions.date)],
@@ -153,7 +153,7 @@ async function fetchSectionData(
 
       const snapshots = await db.query.cashFlowSnapshots.findMany({
         where: and(
-          eq(cashFlowSnapshots.organizationId, organizationId),
+          eq(cashFlowSnapshots.workspaceId, workspaceId),
           gte(cashFlowSnapshots.date, startDateStr)
         ),
         orderBy: [desc(cashFlowSnapshots.date)],
@@ -170,7 +170,7 @@ async function fetchSectionData(
 
       const kpis = await db.query.kpiSnapshots.findMany({
         where: and(
-          eq(kpiSnapshots.organizationId, organizationId),
+          eq(kpiSnapshots.workspaceId, workspaceId),
           gte(kpiSnapshots.date, startDateStr)
         ),
         orderBy: [desc(kpiSnapshots.date)],
@@ -184,7 +184,7 @@ async function fetchSectionData(
   if (sectionName === 'marketing') {
     if (dataInput === 'targetMarketDescription') {
       const market = await db.query.marketDefinitions.findFirst({
-        where: eq(marketDefinitions.organizationId, organizationId),
+        where: eq(marketDefinitions.workspaceId, workspaceId),
       });
       return market?.targetMarketDescription || 'Not defined yet';
     }
@@ -200,7 +200,7 @@ async function fetchSectionData(
         .from(customerAvatars)
         .where(
           and(
-            eq(customerAvatars.organizationId, organizationId),
+            eq(customerAvatars.workspaceId, workspaceId),
             eq(customerAvatars.isActive, true)
           )
         )
@@ -215,21 +215,21 @@ async function fetchSectionData(
 
     if (dataInput === 'valueProposition') {
       const framework = await db.query.messageFrameworks.findFirst({
-        where: eq(messageFrameworks.organizationId, organizationId),
+        where: eq(messageFrameworks.workspaceId, workspaceId),
       });
       return framework?.valueProposition || 'Not defined yet';
     }
 
     if (dataInput === 'painPointsList') {
       const framework = await db.query.messageFrameworks.findFirst({
-        where: eq(messageFrameworks.organizationId, organizationId),
+        where: eq(messageFrameworks.workspaceId, workspaceId),
       });
 
       if (!framework) return 'No message framework defined yet';
 
       const points = await db.query.painPoints.findMany({
         where: and(
-          eq(painPoints.organizationId, organizationId),
+          eq(painPoints.workspaceId, workspaceId),
           eq(painPoints.messageFrameworkId, framework.id)
         ),
         orderBy: [asc(painPoints.displayOrder)],
@@ -242,14 +242,14 @@ async function fetchSectionData(
 
     if (dataInput === 'uspsList') {
       const framework = await db.query.messageFrameworks.findFirst({
-        where: eq(messageFrameworks.organizationId, organizationId),
+        where: eq(messageFrameworks.workspaceId, workspaceId),
       });
 
       if (!framework) return 'No message framework defined yet';
 
       const uspList = await db.query.usps.findMany({
         where: and(
-          eq(usps.organizationId, organizationId),
+          eq(usps.workspaceId, workspaceId),
           eq(usps.messageFrameworkId, framework.id)
         ),
         orderBy: [asc(usps.displayOrder)],
@@ -267,7 +267,7 @@ async function fetchSectionData(
 
       const content = await db.query.contentCalendar.findMany({
         where: and(
-          eq(contentCalendar.organizationId, organizationId),
+          eq(contentCalendar.workspaceId, workspaceId),
           gte(contentCalendar.scheduledDate, startDateStr)
         ),
         orderBy: [desc(contentCalendar.scheduledDate)],
@@ -291,7 +291,7 @@ async function fetchSectionData(
 
     if (dataInput === 'competitorsList') {
       const comps = await db.query.competitors.findMany({
-        where: eq(competitors.organizationId, organizationId),
+        where: eq(competitors.workspaceId, workspaceId),
       });
 
       if (comps.length === 0) return 'No competitors tracked yet';
@@ -314,7 +314,7 @@ Weaknesses: ${c.weaknesses || 'Not analyzed'}
     if (dataInput === 'totalActiveClients') {
       const activeClients = await db.query.clients.findMany({
         where: and(
-          eq(clients.organizationId, organizationId),
+          eq(clients.workspaceId, workspaceId),
           eq(clients.status, 'active')
         ),
       });
@@ -323,7 +323,7 @@ Weaknesses: ${c.weaknesses || 'Not analyzed'}
 
     if (dataInput === 'avgHealthScore') {
       const allClients = await db.query.clients.findMany({
-        where: eq(clients.organizationId, organizationId),
+        where: eq(clients.workspaceId, workspaceId),
       });
       if (allClients.length === 0) return 0;
       const avg = allClients.reduce((sum, c) => sum + c.healthScore, 0) / allClients.length;
@@ -336,7 +336,7 @@ Weaknesses: ${c.weaknesses || 'Not analyzed'}
         .from(clients)
         .where(
           and(
-            eq(clients.organizationId, organizationId),
+            eq(clients.workspaceId, workspaceId),
             or(eq(clients.status, 'at_risk'), sql`${clients.healthScore} < 50`)!
           )
         );
@@ -349,7 +349,7 @@ Weaknesses: ${c.weaknesses || 'Not analyzed'}
       const thirtyDaysAgoStr = thirtyDaysAgo.toISOString();
 
       const allClients = await db.query.clients.findMany({
-        where: eq(clients.organizationId, organizationId),
+        where: eq(clients.workspaceId, workspaceId),
       });
 
       const recentChurns = allClients.filter(
@@ -365,7 +365,7 @@ Weaknesses: ${c.weaknesses || 'Not analyzed'}
 
     if (dataInput === 'clientDetailsList') {
       const allClients = await db.query.clients.findMany({
-        where: eq(clients.organizationId, organizationId),
+        where: eq(clients.workspaceId, workspaceId),
         orderBy: [desc(clients.createdAt)],
         limit: 20,
       });
@@ -388,7 +388,7 @@ Weaknesses: ${c.weaknesses || 'Not analyzed'}
         .from(clients)
         .where(
           and(
-            eq(clients.organizationId, organizationId),
+            eq(clients.workspaceId, workspaceId),
             or(eq(clients.status, 'at_risk'), sql`${clients.healthScore} < 50`)!
           )
         )
@@ -414,7 +414,7 @@ Weaknesses: ${c.weaknesses || 'Not analyzed'}
 
       const churnedClients = await db.query.clients.findMany({
         where: and(
-          eq(clients.organizationId, organizationId),
+          eq(clients.workspaceId, workspaceId),
           eq(clients.status, 'churned')
         ),
         orderBy: [desc(clients.updatedAt)],
@@ -478,7 +478,7 @@ export async function POST(request: Request) {
     const promptTemplate = await db.query.aiPromptTemplates.findFirst({
       where: and(
         eq(aiPromptTemplates.id, promptTemplateId),
-        eq(aiPromptTemplates.organizationId, context.organizationId)
+        eq(aiPromptTemplates.workspaceId, context.workspaceId)
       ),
     });
 
@@ -499,7 +499,7 @@ export async function POST(request: Request) {
       const data = await fetchSectionData(
         sectionName,
         dataInput,
-        context.organizationId,
+        context.workspaceId,
         context.userId
       );
       inputData[dataInput] = data;
@@ -519,7 +519,7 @@ export async function POST(request: Request) {
     console.log('[AI Analyze] Calling Claude API...');
     console.log('[AI Analyze] Section:', sectionName);
     console.log('[AI Analyze] Prompt:', promptTemplate.promptName);
-    console.log('[AI Analyze] Organization:', context.organizationId);
+    console.log('[AI Analyze] Organization:', context.workspaceId);
 
     // Call Claude API
     const startTime = Date.now();
@@ -549,7 +549,7 @@ export async function POST(request: Request) {
     const analysis = await db
       .insert(aiAnalyses)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         sectionName,
         promptTemplateId,

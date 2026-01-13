@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search'); // search by name/email/company
 
     // Build query
-    let conditions = [eq(clients.organizationId, context.organizationId)];
+    let conditions = [eq(clients.workspaceId, context.workspaceId)];
 
     if (status && status !== 'all') {
       conditions.push(eq(clients.status, status));
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     const newClient = await db
       .insert(clients)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         name,
         email: email || null,

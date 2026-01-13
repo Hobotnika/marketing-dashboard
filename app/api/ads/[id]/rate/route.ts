@@ -49,17 +49,17 @@ export async function POST(
     console.log('Ad ID requested:', adId);
     console.log('Full request URL:', request.url);
 
-    const organizationId = request.headers.get('x-organization-id');
+    const workspaceId = request.headers.get('x-workspace-id');
     const userId = request.headers.get('x-user-id');
     const subdomain = request.headers.get('x-organization-subdomain');
 
     console.log('Tenant context:', {
-      organizationId,
+      workspaceId,
       subdomain,
       userId
     });
 
-    if (!organizationId) {
+    if (!workspaceId) {
       console.error('[Avatar Rating] Organization ID not found in headers');
       return NextResponse.json(
         { success: false, error: 'Organization ID not found' },
@@ -85,7 +85,7 @@ export async function POST(
 
     // Verify ad exists and belongs to organization
     console.log('Querying for ad with ID:', adId);
-    console.log('Organization filter:', organizationId);
+    console.log('Organization filter:', workspaceId);
 
     const ad = await db
       .select()
@@ -93,7 +93,7 @@ export async function POST(
       .where(
         and(
           eq(ads.id, adId),
-          eq(ads.organizationId, organizationId)
+          eq(ads.workspaceId, workspaceId)
         )
       )
       .limit(1);
@@ -114,13 +114,13 @@ export async function POST(
       console.log('Ad exists in DB but wrong org?:', anyAd.length > 0);
 
       if (anyAd.length > 0) {
-        console.log('Ad organization ID:', anyAd[0].organizationId);
-        console.log('Expected organization ID:', organizationId);
+        console.log('Ad organization ID:', anyAd[0].workspaceId);
+        console.log('Expected organization ID:', workspaceId);
         console.log('MISMATCH! This is a tenant isolation issue.');
         console.log('Ad details:', {
           id: anyAd[0].id,
           type: anyAd[0].adType,
-          organizationId: anyAd[0].organizationId,
+          workspaceId: anyAd[0].workspaceId,
           createdAt: anyAd[0].createdAt
         });
       } else {
@@ -145,7 +145,7 @@ export async function POST(
       .from(customerAvatars)
       .where(
         and(
-          eq(customerAvatars.organizationId, organizationId),
+          eq(customerAvatars.workspaceId, workspaceId),
           eq(customerAvatars.setName, avatarSetName),
           eq(customerAvatars.isActive, true)
         )
@@ -230,7 +230,7 @@ export async function POST(
       .insert(adRatings)
       .values({
         adId,
-        organizationId,
+        workspaceId,
         avatarSetName,
         niche: avatarRecords[0].niche,
         avatarFeedbacks: JSON.stringify(avatarFeedbacksObj),

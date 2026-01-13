@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const priority = searchParams.get('priority'); // filter by priority
 
     // Build query
-    let conditions = [eq(tasks.organizationId, context.organizationId)];
+    let conditions = [eq(tasks.workspaceId, context.workspaceId)];
 
     if (assignedTo && assignedTo !== 'all') {
       if (assignedTo === 'me') {
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
     const newTasks = await db
       .insert(tasks)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         createdBy: context.userId,
         assignedTo: assignedTo || null,
         title,
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
 
     // Create activity feed entry
     await db.insert(activityFeed).values({
-      organizationId: context.organizationId,
+      workspaceId: context.workspaceId,
       userId: context.userId,
       activityType: 'task_assigned',
       entityType: 'task',
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
     // Create notification for assignee if different from creator
     if (assignedTo && assignedTo !== context.userId) {
       await db.insert(notifications).values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: assignedTo,
         notificationType: 'task_assigned',
         title: 'New task assigned to you',

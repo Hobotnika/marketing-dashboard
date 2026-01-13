@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { protectTenantRoute } from '@/lib/api/tenant-security';
 import { db } from '@/lib/db';
-import { organizations, clients } from '@/lib/db/schema';
+import { workspaces, clients } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const org = await db
       .select()
       .from(organizations)
-      .where(eq(organizations.id, context.organizationId))
+      .where(eq(workspaces.id, context.workspaceId))
       .limit(1);
 
     const brandVoiceProfile = org[0]?.brandVoiceProfile

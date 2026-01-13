@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
         and(
           eq(comments.entityType, entityType),
           eq(comments.entityId, entityId),
-          eq(comments.organizationId, context.organizationId)
+          eq(comments.workspaceId, context.workspaceId)
         )
       )
       .orderBy(desc(comments.createdAt));
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     const newComments = await db
       .insert(comments)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         entityType,
         entityId,
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
         .from(users)
         .where(
           and(
-            eq(users.organizationId, context.organizationId),
+            eq(users.workspaceId, context.workspaceId),
             inArray(users.name, mentions)
           )
         );
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
       for (const mentionedUser of mentionedUsers) {
         if (mentionedUser.id !== context.userId) {
           await db.insert(notifications).values({
-            organizationId: context.organizationId,
+            workspaceId: context.workspaceId,
             userId: mentionedUser.id,
             notificationType: 'mention',
             title: 'You were mentioned in a comment',

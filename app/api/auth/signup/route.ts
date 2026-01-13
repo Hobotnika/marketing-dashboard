@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
-import { users, organizations } from '@/lib/db/schema';
+import { users, workspaces, userWorkspaces } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
@@ -49,40 +49,76 @@ export async function POST(request: NextRequest) {
     const randomSuffix = Math.random().toString(36).substring(2, 6);
     const subdomain = `${baseSubdomain}-${randomSuffix}`;
 
-    // Create organization for this user
-    const [organization] = await db
-      .insert(organizations)
+    const now = new Date().toISOString();
+    const workspaceId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
+    const userWorkspaceId = crypto.randomUUID();
+
+    // Create workspace for this user
+    const [workspace] = await db
+      .insert(workspaces)
       .values({
-        name: `${name}'s Organization`,
+        id: workspaceId,
+        name: `${name}'s Workspace`,
         subdomain: subdomain,
+        ownerId: userId, // Will be the user we create next
         status: 'trial',
+        createdAt: now,
+        updatedAt: now,
       })
       .returning();
 
-    if (!organization) {
+    if (!workspace) {
       return NextResponse.json(
-        { error: 'Failed to create organization' },
+        { error: 'Failed to create workspace' },
         { status: 500 }
       );
     }
 
-    // Create user linked to the organization
+    // Create user
     const [user] = await db
       .insert(users)
       .values({
+        id: userId,
         name,
         email: email.toLowerCase(),
         passwordHash,
-        organizationId: organization.id,
-        role: 'admin', // First user is always admin
+        currentWorkspaceId: workspaceId, // Set their current workspace
+        createdAt: now,
+        updatedAt: now,
       })
       .returning();
 
     if (!user) {
-      // Rollback: delete the organization if user creation fails
-      await db.delete(organizations).where(eq(organizations.id, organization.id));
+      // Rollback: delete the workspace if user creation fails
+      await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
       return NextResponse.json(
         { error: 'Failed to create user' },
+        { status: 500 }
+      );
+    }
+
+    // Create userWorkspace relationship (user is owner of their workspace)
+    const [userWorkspace] = await db
+      .insert(userWorkspaces)
+      .values({
+        id: userWorkspaceId,
+        userId: user.id,
+        workspaceId: workspace.id,
+        role: 'owner',
+        invitedAt: now,
+        joinedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    if (!userWorkspace) {
+      // Rollback: delete user and workspace if relationship creation fails
+      await db.delete(users).where(eq(users.id, user.id));
+      await db.delete(workspaces).where(eq(workspaces.id, workspace.id));
+      return NextResponse.json(
+        { error: 'Failed to create workspace membership' },
         { status: 500 }
       );
     }
@@ -96,10 +132,10 @@ export async function POST(request: NextRequest) {
           name: user.name,
           email: user.email,
         },
-        organization: {
-          id: organization.id,
-          name: organization.name,
-          subdomain: organization.subdomain,
+        workspace: {
+          id: workspace.id,
+          name: workspace.name,
+          subdomain: workspace.subdomain,
         },
       },
       { status: 201 }

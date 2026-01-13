@@ -17,8 +17,8 @@ export async function GET(
       where: and(
         eq(aiPrompts.id, id),
         or(
-          eq(aiPrompts.organizationId, context.organizationId),
-          isNull(aiPrompts.organizationId) // System prompts
+          eq(aiPrompts.workspaceId, context.workspaceId),
+          isNull(aiPrompts.workspaceId) // System prompts
         )
       ),
     });
@@ -61,7 +61,7 @@ export async function PATCH(
     const existingPrompt = await db.query.aiPrompts.findFirst({
       where: and(
         eq(aiPrompts.id, id),
-        eq(aiPrompts.organizationId, context.organizationId)
+        eq(aiPrompts.workspaceId, context.workspaceId)
       ),
     });
 
@@ -76,7 +76,7 @@ export async function PATCH(
     }
 
     // Cannot edit system prompts (organizationId = NULL)
-    if (existingPrompt.organizationId === null) {
+    if (existingPrompt.workspaceId === null) {
       return NextResponse.json(
         {
           success: false,
@@ -102,7 +102,7 @@ export async function PATCH(
         .set({ isDefault: false })
         .where(
           and(
-            eq(aiPrompts.organizationId, context.organizationId),
+            eq(aiPrompts.workspaceId, context.workspaceId),
             eq(aiPrompts.category, existingPrompt.category),
             eq(aiPrompts.isDefault, true)
           )
@@ -159,7 +159,7 @@ export async function DELETE(
     const existingPrompt = await db.query.aiPrompts.findFirst({
       where: and(
         eq(aiPrompts.id, id),
-        eq(aiPrompts.organizationId, context.organizationId)
+        eq(aiPrompts.workspaceId, context.workspaceId)
       ),
     });
 
@@ -174,7 +174,7 @@ export async function DELETE(
     }
 
     // Cannot delete system prompts
-    if (existingPrompt.organizationId === null) {
+    if (existingPrompt.workspaceId === null) {
       return NextResponse.json(
         {
           success: false,

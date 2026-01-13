@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status'); // active, completed, archived
 
     // Build query conditions (company-level: filter by org only)
-    let conditions = [eq(quarterlyOKRs.organizationId, context.organizationId)];
+    let conditions = [eq(quarterlyOKRs.workspaceId, context.workspaceId)];
 
     if (quarter) {
       conditions.push(eq(quarterlyOKRs.quarter, quarter));
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     const newOKR = await db
       .insert(quarterlyOKRs)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId, // Creator
         ownerId: ownerId || null,
         quarter,
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
           .insert(keyResults)
           .values({
             okrId: newOKR[0].id,
-            organizationId: context.organizationId,
+            workspaceId: context.workspaceId,
             keyResultTitle: kr.keyResultTitle,
             targetValue: kr.targetValue || null,
             currentValue: kr.currentValue || '0',

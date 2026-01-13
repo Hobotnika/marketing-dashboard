@@ -267,7 +267,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
     console.error('Unexpected error:', error);
 
     // Try to return cached data on error
-    const cacheKey = `meta-ads-metrics-${context.organizationId}`;
+    const cacheKey = `meta-ads-metrics-${context.workspaceId}`;
     const cachedData = getCachedMetrics(cacheKey);
 
     if (cachedData) {

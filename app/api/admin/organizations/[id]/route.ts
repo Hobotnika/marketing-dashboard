@@ -20,8 +20,8 @@ export async function GET(
       );
     }
 
-    const organization = await db.query.organizations.findFirst({
-      where: eq(organizations.id, params.id),
+    const organization = await db.query.workspaces.findFirst({
+      where: eq(workspaces.id, params.id),
       with: {
         users: true,
       },
@@ -77,8 +77,8 @@ export async function PUT(
     } = body;
 
     // Check if organization exists
-    const existingOrg = await db.query.organizations.findFirst({
-      where: eq(organizations.id, params.id),
+    const existingOrg = await db.query.workspaces.findFirst({
+      where: eq(workspaces.id, params.id),
     });
 
     if (!existingOrg) {
@@ -90,7 +90,7 @@ export async function PUT(
 
     // If subdomain is changing, check it doesn't already exist
     if (subdomain && subdomain !== existingOrg.subdomain) {
-      const subdomainExists = await db.query.organizations.findFirst({
+      const subdomainExists = await db.query.workspaces.findFirst({
         where: (orgs, { eq }) => eq(orgs.subdomain, subdomain),
       });
 
@@ -149,7 +149,7 @@ export async function PUT(
     const [updatedOrg] = await db
       .update(organizations)
       .set(updateData)
-      .where(eq(organizations.id, params.id))
+      .where(eq(workspaces.id, params.id))
       .returning();
 
     return NextResponse.json(updatedOrg);
@@ -178,8 +178,8 @@ export async function DELETE(
     }
 
     // Check if organization exists
-    const existingOrg = await db.query.organizations.findFirst({
-      where: eq(organizations.id, params.id),
+    const existingOrg = await db.query.workspaces.findFirst({
+      where: eq(workspaces.id, params.id),
       with: {
         users: true,
       },
@@ -194,7 +194,7 @@ export async function DELETE(
 
     // Note: This will cascade delete all users due to foreign key constraint
     // Make sure the schema has ON DELETE CASCADE
-    await db.delete(organizations).where(eq(organizations.id, params.id));
+    await db.delete(organizations).where(eq(workspaces.id, params.id));
 
     return NextResponse.json({
       message: 'Organization deleted successfully',

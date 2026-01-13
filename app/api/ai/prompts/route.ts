@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     // Get all active prompts for this section and organization
     const prompts = await db.query.aiPromptTemplates.findMany({
       where: and(
-        eq(aiPromptTemplates.organizationId, context.organizationId),
+        eq(aiPromptTemplates.workspaceId, context.workspaceId),
         eq(aiPromptTemplates.sectionName, sectionName),
         eq(aiPromptTemplates.isActive, true)
       ),
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
         .where(
           and(
             eq(aiPromptTemplates.id, id),
-            eq(aiPromptTemplates.organizationId, context.organizationId)
+            eq(aiPromptTemplates.workspaceId, context.workspaceId)
           )
         )
         .returning();
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
       const created = await db
         .insert(aiPromptTemplates)
         .values({
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           sectionName,
           promptName,
           description,

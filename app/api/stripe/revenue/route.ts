@@ -72,7 +72,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
     const startDate = searchParams.get('startDate') ||
       new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    return returnCachedData(startDate, endDate, context.organizationId);
+    return returnCachedData(startDate, endDate, context.workspaceId);
   }
 });
 
@@ -180,8 +180,8 @@ function calculateMetrics(
 /**
  * Return cached data when API fails or credentials missing
  */
-function returnCachedData(startDate: string, endDate: string, organizationId: string) {
-  const cached = getCache<RevenueMetrics>(getCacheKey(organizationId));
+function returnCachedData(startDate: string, endDate: string, workspaceId: string) {
+  const cached = getCache<RevenueMetrics>(getCacheKey(workspaceId));
 
   if (cached) {
     console.log('✅ Returning cached Stripe revenue data');

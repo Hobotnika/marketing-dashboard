@@ -23,7 +23,7 @@ export async function GET(
       .where(
         and(
           eq(quarterlyOKRs.id, okrId),
-          eq(quarterlyOKRs.organizationId, context.organizationId)
+          eq(quarterlyOKRs.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -90,7 +90,7 @@ export async function PATCH(
       .where(
         and(
           eq(quarterlyOKRs.id, okrId),
-          eq(quarterlyOKRs.organizationId, context.organizationId)
+          eq(quarterlyOKRs.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -118,7 +118,7 @@ export async function PATCH(
       .where(
         and(
           eq(quarterlyOKRs.id, okrId),
-          eq(quarterlyOKRs.organizationId, context.organizationId)
+          eq(quarterlyOKRs.workspaceId, context.workspaceId)
         )
       )
       .returning();
@@ -160,7 +160,7 @@ export async function DELETE(
       .where(
         and(
           eq(quarterlyOKRs.id, okrId),
-          eq(quarterlyOKRs.organizationId, context.organizationId)
+          eq(quarterlyOKRs.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -183,7 +183,7 @@ export async function DELETE(
       .where(
         and(
           eq(quarterlyOKRs.id, okrId),
-          eq(quarterlyOKRs.organizationId, context.organizationId)
+          eq(quarterlyOKRs.workspaceId, context.workspaceId)
         )
       );
 

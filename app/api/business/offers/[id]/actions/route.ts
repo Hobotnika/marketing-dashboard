@@ -7,7 +7,7 @@ import { protectTenantRoute } from '@/lib/api/tenant-security';
 /**
  * Generate unique offer ID (OFF-YYYY-NNN format)
  */
-async function generateOfferId(organizationId: string): Promise<string> {
+async function generateOfferId(workspaceId: string): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `OFF-${year}-`;
 
@@ -17,7 +17,7 @@ async function generateOfferId(organizationId: string): Promise<string> {
     .from(offers)
     .where(
       and(
-        eq(offers.organizationId, organizationId),
+        eq(offers.workspaceId, workspaceId),
         eq(offers.offerId, `${prefix}%`)
       )
     );
@@ -63,7 +63,7 @@ export async function POST(
     const existingOffer = await db.query.offers.findFirst({
       where: and(
         eq(offers.id, params.id),
-        eq(offers.organizationId, context.organizationId)
+        eq(offers.workspaceId, context.workspaceId)
       ),
     });
 
@@ -96,7 +96,7 @@ export async function POST(
           .where(
             and(
               eq(offers.id, params.id),
-              eq(offers.organizationId, context.organizationId)
+              eq(offers.workspaceId, context.workspaceId)
             )
           )
           .returning();
@@ -104,7 +104,7 @@ export async function POST(
         // Log activity
         await db.insert(offerActivities).values({
           offerId: params.id,
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           activityType: 'sent',
           performedBy: context.userId,
           notes: 'Offer sent to client',
@@ -148,7 +148,7 @@ export async function POST(
           .where(
             and(
               eq(offers.id, params.id),
-              eq(offers.organizationId, context.organizationId)
+              eq(offers.workspaceId, context.workspaceId)
             )
           )
           .returning();
@@ -156,7 +156,7 @@ export async function POST(
         // Log activity
         await db.insert(offerActivities).values({
           offerId: params.id,
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           activityType: 'accepted',
           performedBy: context.userId,
           notes: reason || 'Offer accepted',
@@ -171,7 +171,7 @@ export async function POST(
             .where(
               and(
                 eq(offers.templateId, existingOffer.templateId),
-                eq(offers.organizationId, context.organizationId)
+                eq(offers.workspaceId, context.workspaceId)
               )
             );
 
@@ -226,7 +226,7 @@ export async function POST(
           .where(
             and(
               eq(offers.id, params.id),
-              eq(offers.organizationId, context.organizationId)
+              eq(offers.workspaceId, context.workspaceId)
             )
           )
           .returning();
@@ -234,7 +234,7 @@ export async function POST(
         // Log activity
         await db.insert(offerActivities).values({
           offerId: params.id,
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           activityType: 'declined',
           performedBy: context.userId,
           notes: reason,
@@ -248,7 +248,7 @@ export async function POST(
             .where(
               and(
                 eq(offers.templateId, existingOffer.templateId),
-                eq(offers.organizationId, context.organizationId)
+                eq(offers.workspaceId, context.workspaceId)
               )
             );
 
@@ -277,14 +277,14 @@ export async function POST(
 
       case 'duplicate': {
         // Generate new IDs
-        const newOfferId = await generateOfferId(context.organizationId);
+        const newOfferId = await generateOfferId(context.workspaceId);
         const newShareLink = generateShareLink();
 
         // Create duplicate offer
         const duplicateOffer = await db
           .insert(offers)
           .values({
-            organizationId: context.organizationId,
+            workspaceId: context.workspaceId,
             userId: context.userId,
             clientId: existingOffer.clientId,
             templateId: existingOffer.templateId,
@@ -307,7 +307,7 @@ export async function POST(
         // Log activity on the new offer
         await db.insert(offerActivities).values({
           offerId: duplicateOffer[0].id,
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           activityType: 'created',
           performedBy: context.userId,
           notes: `Duplicated from ${existingOffer.offerId}`,

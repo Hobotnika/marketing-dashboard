@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     }
 
     await seedDefaultKpisPrompts(
-      context.organizationId,
+      context.workspaceId,
       context.userId
     );
 

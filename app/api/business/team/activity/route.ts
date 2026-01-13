@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
 
     // Build query
-    let conditions = [eq(activityFeed.organizationId, context.organizationId)];
+    let conditions = [eq(activityFeed.workspaceId, context.workspaceId)];
 
     if (activityType && activityType !== 'all') {
       conditions.push(eq(activityFeed.activityType, activityType));

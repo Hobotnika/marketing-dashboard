@@ -32,7 +32,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
     const savedAds = [];
     for (const variation of variations) {
       const [saved] = await db.insert(ads).values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         ai_generated: true,
         ai_prompt: variation.formula,
@@ -83,7 +83,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
     const { searchParams } = new URL(request.url);
 
     // Build WHERE conditions (always filter by organization)
-    const conditions = [eq(ads.organizationId, context.organizationId)];
+    const conditions = [eq(ads.workspaceId, context.workspaceId)];
 
     // Filter by platform
     const platform = searchParams.get('platform');

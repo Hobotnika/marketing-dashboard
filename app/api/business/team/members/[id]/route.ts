@@ -24,7 +24,7 @@ export async function PATCH(
       .where(
         and(
           eq(teamMembers.id, params.id),
-          eq(teamMembers.organizationId, context.organizationId)
+          eq(teamMembers.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -88,7 +88,7 @@ export async function DELETE(
       .where(
         and(
           eq(teamMembers.id, params.id),
-          eq(teamMembers.organizationId, context.organizationId)
+          eq(teamMembers.workspaceId, context.workspaceId)
         )
       )
       .limit(1);

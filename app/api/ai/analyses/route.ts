@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '10');
 
     // Build where clause
-    let whereClause = eq(aiAnalyses.organizationId, context.organizationId);
+    let whereClause = eq(aiAnalyses.workspaceId, context.workspaceId);
 
     if (sectionName) {
       whereClause = and(

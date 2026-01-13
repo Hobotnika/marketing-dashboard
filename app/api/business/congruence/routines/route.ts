@@ -31,7 +31,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
       .from(dailyRoutines)
       .where(
         and(
-          eq(dailyRoutines.organizationId, context.organizationId),
+          eq(dailyRoutines.workspaceId, context.workspaceId),
           eq(dailyRoutines.userId, context.userId), // USER-PRIVATE!
           gte(dailyRoutines.date, startDateStr)
         )
@@ -94,7 +94,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       .from(dailyRoutines)
       .where(
         and(
-          eq(dailyRoutines.organizationId, context.organizationId),
+          eq(dailyRoutines.workspaceId, context.workspaceId),
           eq(dailyRoutines.userId, context.userId),
           eq(dailyRoutines.date, date)
         )
@@ -124,7 +124,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       const created = await db
         .insert(dailyRoutines)
         .values({
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           userId: context.userId,
           isPrivate: true,
           date,

@@ -15,7 +15,7 @@ import { eq, and, sql } from 'drizzle-orm';
  */
 export const GET = withTenantSecurity(async (request: Request, context) => {
   try {
-    console.log('[Marketing/Avatars] Fetching avatar sets for org:', context.organizationId);
+    console.log('[Marketing/Avatars] Fetching avatar sets for org:', context.workspaceId);
 
     // Query avatar sets grouped by setName
     const avatarSets = await db
@@ -28,7 +28,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
       .from(customerAvatars)
       .where(
         and(
-          eq(customerAvatars.organizationId, context.organizationId),
+          eq(customerAvatars.workspaceId, context.workspaceId),
           eq(customerAvatars.isActive, true)
         )
       )

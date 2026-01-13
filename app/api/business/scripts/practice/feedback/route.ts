@@ -165,7 +165,7 @@ Format your response as:
     const session = await db
       .insert(practiceSessions)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         scriptId,
         personaType,

@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       const newGoals = await db
         .insert(connectionGoals)
         .values({
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           userId: context.userId,
           dailyGoal: 5,
           weeklyGoal: 25,
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
     const newConnection = await db
       .insert(newConnections)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         date: date || new Date().toISOString().split('T')[0],
         connectionName,
@@ -214,7 +214,7 @@ export async function PATCH(request: NextRequest) {
       updatedGoals = await db
         .insert(connectionGoals)
         .values({
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           userId: context.userId,
           dailyGoal: dailyGoal || 5,
           weeklyGoal: weeklyGoal || 25,

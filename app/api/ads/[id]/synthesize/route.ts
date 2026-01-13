@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@/lib/db';
-import { organizations, ads } from '@/lib/db/schema';
+import { workspaces, ads } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 const anthropic = new Anthropic({
@@ -23,9 +23,9 @@ export async function POST(
 
     console.log('[Copywriter Synthesis] Starting for ad:', adId);
 
-    const organizationId = request.headers.get('x-organization-id');
+    const workspaceId = request.headers.get('x-workspace-id');
 
-    if (!organizationId) {
+    if (!workspaceId) {
       return NextResponse.json(
         { error: 'Organization ID not found' },
         { status: 400 }
@@ -53,8 +53,8 @@ export async function POST(
     console.log('[Copywriter Synthesis] Ad type:', ad?.adType);
 
     // Get organization and brand voice
-    const organization = await db.query.organizations.findFirst({
-      where: eq(organizations.id, organizationId)
+    const organization = await db.query.workspaces.findFirst({
+      where: eq(workspaces.id, workspaceId)
     });
 
     if (!organization) {

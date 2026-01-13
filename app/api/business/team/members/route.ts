@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       })
       .from(teamMembers)
       .leftJoin(users, eq(teamMembers.userId, users.id))
-      .where(eq(teamMembers.organizationId, context.organizationId));
+      .where(eq(teamMembers.workspaceId, context.workspaceId));
 
     return NextResponse.json({
       success: true,
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(teamMembers.userId, userId),
-            eq(teamMembers.organizationId, context.organizationId)
+            eq(teamMembers.workspaceId, context.workspaceId)
           )
         )
         .limit(1);
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
           email,
           name: email.split('@')[0], // Temporary name
           passwordHash: '', // Will be set when they accept invitation
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           role: 'viewer',
         })
         .returning();
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     const newMembers = await db
       .insert(teamMembers)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId,
         role: role || 'member',
         department: department || null,

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     // Build query conditions (user-private: filter by both org and user)
     let conditions = [
-      eq(weeklyReviews.organizationId, context.organizationId),
+      eq(weeklyReviews.workspaceId, context.workspaceId),
       eq(weeklyReviews.userId, context.userId),
     ];
 
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       .from(transactions)
       .where(
         and(
-          eq(transactions.organizationId, context.organizationId),
+          eq(transactions.workspaceId, context.workspaceId),
           eq(transactions.type, 'income'),
           gte(transactions.date, weekStartDate),
           lte(transactions.date, weekEndDate)
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       .from(clients)
       .where(
         and(
-          eq(clients.organizationId, context.organizationId),
+          eq(clients.workspaceId, context.workspaceId),
           gte(clients.createdAt, weekStartDate),
           lte(clients.createdAt, weekEndDate)
         )
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       .from(monthlyActivities)
       .where(
         and(
-          eq(monthlyActivities.organizationId, context.organizationId),
+          eq(monthlyActivities.workspaceId, context.workspaceId),
           eq(monthlyActivities.userId, context.userId),
           eq(monthlyActivities.isCompleted, true),
           gte(monthlyActivities.date, weekStartDate),
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     const newReview = await db
       .insert(weeklyReviews)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId, // User-private
         weekStartDate,
         weekEndDate,

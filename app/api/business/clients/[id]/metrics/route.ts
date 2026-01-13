@@ -36,7 +36,7 @@ export async function POST(
       .insert(clientHealthMetrics)
       .values({
         clientId: params.id,
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         ...body,
       })

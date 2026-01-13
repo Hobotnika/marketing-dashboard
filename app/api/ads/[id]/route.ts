@@ -19,7 +19,7 @@ export async function GET(
     const ad = await db.query.ads.findFirst({
       where: and(
         eq(ads.id, params.id),
-        eq(ads.organizationId, context.organizationId) // Security: tenant check
+        eq(ads.workspaceId, context.workspaceId) // Security: tenant check
       ),
       with: {
         user: {
@@ -42,7 +42,7 @@ export async function GET(
     // Log successful request
     await logApiRequest({
       userId: context.userId,
-      organizationId: context.organizationId,
+      workspaceId: context.workspaceId,
       apiName: 'ads',
       endpoint: `/api/ads/${params.id}`,
       status: 'success',
@@ -78,7 +78,7 @@ export async function DELETE(
     const result = await db.delete(ads)
       .where(and(
         eq(ads.id, params.id),
-        eq(ads.organizationId, context.organizationId) // Security: tenant check
+        eq(ads.workspaceId, context.workspaceId) // Security: tenant check
       ))
       .returning();
 
@@ -92,7 +92,7 @@ export async function DELETE(
     // Log successful request
     await logApiRequest({
       userId: context.userId,
-      organizationId: context.organizationId,
+      workspaceId: context.workspaceId,
       apiName: 'ads',
       endpoint: `/api/ads/${params.id}`,
       status: 'success',
@@ -138,7 +138,7 @@ export async function PATCH(
       .set(updateData)
       .where(and(
         eq(ads.id, params.id),
-        eq(ads.organizationId, context.organizationId) // Security: tenant check
+        eq(ads.workspaceId, context.workspaceId) // Security: tenant check
       ))
       .returning();
 
@@ -152,7 +152,7 @@ export async function PATCH(
     // Log successful request
     await logApiRequest({
       userId: context.userId,
-      organizationId: context.organizationId,
+      workspaceId: context.workspaceId,
       apiName: 'ads',
       endpoint: `/api/ads/${params.id}`,
       status: 'success',

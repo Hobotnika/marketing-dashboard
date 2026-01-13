@@ -37,7 +37,7 @@ export async function PATCH(
       .where(
         and(
           eq(monthlyActivities.id, activityId),
-          eq(monthlyActivities.organizationId, context.organizationId),
+          eq(monthlyActivities.workspaceId, context.workspaceId),
           eq(monthlyActivities.userId, context.userId)
         )
       )
@@ -72,7 +72,7 @@ export async function PATCH(
       .where(
         and(
           eq(monthlyActivities.id, activityId),
-          eq(monthlyActivities.organizationId, context.organizationId),
+          eq(monthlyActivities.workspaceId, context.workspaceId),
           eq(monthlyActivities.userId, context.userId)
         )
       )
@@ -115,7 +115,7 @@ export async function DELETE(
       .where(
         and(
           eq(monthlyActivities.id, activityId),
-          eq(monthlyActivities.organizationId, context.organizationId),
+          eq(monthlyActivities.workspaceId, context.workspaceId),
           eq(monthlyActivities.userId, context.userId)
         )
       )
@@ -133,7 +133,7 @@ export async function DELETE(
       .where(
         and(
           eq(monthlyActivities.id, activityId),
-          eq(monthlyActivities.organizationId, context.organizationId),
+          eq(monthlyActivities.workspaceId, context.workspaceId),
           eq(monthlyActivities.userId, context.userId)
         )
       );

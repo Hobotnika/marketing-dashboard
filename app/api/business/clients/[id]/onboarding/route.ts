@@ -34,7 +34,7 @@ export async function POST(
       .insert(onboardingTasks)
       .values({
         clientId: params.id,
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         ...body,
       })
       .returning();

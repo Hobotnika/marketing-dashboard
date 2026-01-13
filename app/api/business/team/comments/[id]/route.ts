@@ -32,7 +32,7 @@ export async function PATCH(
         and(
           eq(comments.id, params.id),
           eq(comments.userId, context.userId),
-          eq(comments.organizationId, context.organizationId)
+          eq(comments.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -92,7 +92,7 @@ export async function DELETE(
         and(
           eq(comments.id, params.id),
           eq(comments.userId, context.userId),
-          eq(comments.organizationId, context.organizationId)
+          eq(comments.workspaceId, context.workspaceId)
         )
       )
       .limit(1);

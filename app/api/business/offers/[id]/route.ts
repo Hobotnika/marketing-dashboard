@@ -18,7 +18,7 @@ export async function GET(
     const offer = await db.query.offers.findFirst({
       where: and(
         eq(offers.id, params.id),
-        eq(offers.organizationId, context.organizationId)
+        eq(offers.workspaceId, context.workspaceId)
       ),
       with: {
         client: true,
@@ -78,7 +78,7 @@ export async function PATCH(
     const existingOffer = await db.query.offers.findFirst({
       where: and(
         eq(offers.id, params.id),
-        eq(offers.organizationId, context.organizationId)
+        eq(offers.workspaceId, context.workspaceId)
       ),
     });
 
@@ -147,7 +147,7 @@ export async function PATCH(
 
       await db.insert(offerVersions).values({
         offerId: params.id,
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         versionNumber: nextVersionNumber,
         changesSummary: changesSummary || 'Updated offer',
         createdBy: context.userId,
@@ -161,7 +161,7 @@ export async function PATCH(
       .where(
         and(
           eq(offers.id, params.id),
-          eq(offers.organizationId, context.organizationId)
+          eq(offers.workspaceId, context.workspaceId)
         )
       )
       .returning();
@@ -169,7 +169,7 @@ export async function PATCH(
     // Log activity
     await db.insert(offerActivities).values({
       offerId: params.id,
-      organizationId: context.organizationId,
+      workspaceId: context.workspaceId,
       activityType: 'edited',
       performedBy: context.userId,
       notes: changesSummary || 'Offer updated',
@@ -205,7 +205,7 @@ export async function DELETE(
     const existingOffer = await db.query.offers.findFirst({
       where: and(
         eq(offers.id, params.id),
-        eq(offers.organizationId, context.organizationId)
+        eq(offers.workspaceId, context.workspaceId)
       ),
     });
 
@@ -229,7 +229,7 @@ export async function DELETE(
       .where(
         and(
           eq(offers.id, params.id),
-          eq(offers.organizationId, context.organizationId)
+          eq(offers.workspaceId, context.workspaceId)
         )
       );
 

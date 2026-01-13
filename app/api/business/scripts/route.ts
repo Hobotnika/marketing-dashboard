@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'updated'; // 'updated', 'used', 'success'
 
     // Build query
-    let conditions = [eq(dmScripts.organizationId, context.organizationId)];
+    let conditions = [eq(dmScripts.workspaceId, context.workspaceId)];
 
     if (category && category !== 'all') {
       conditions.push(eq(dmScripts.category, category));
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     const newScript = await db
       .insert(dmScripts)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         title,
         category,

@@ -16,8 +16,8 @@ export const GET = withTenantSecurity(async (request, context) => {
     // User can see their org's prompts + system defaults (organizationId = NULL)
     conditions.push(
       or(
-        eq(aiPrompts.organizationId, context.organizationId),
-        isNull(aiPrompts.organizationId)
+        eq(aiPrompts.workspaceId, context.workspaceId),
+        isNull(aiPrompts.workspaceId)
       )
     );
 
@@ -95,7 +95,7 @@ export const POST = withTenantSecurity(async (request, context) => {
         .set({ isDefault: false })
         .where(
           and(
-            eq(aiPrompts.organizationId, context.organizationId),
+            eq(aiPrompts.workspaceId, context.workspaceId),
             eq(aiPrompts.category, category),
             eq(aiPrompts.isDefault, true)
           )
@@ -106,7 +106,7 @@ export const POST = withTenantSecurity(async (request, context) => {
     const [newPrompt] = await db
       .insert(aiPrompts)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         name,
         description: description || null,
         category,

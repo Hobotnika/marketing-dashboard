@@ -22,7 +22,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
     const statusFilter = searchParams.get('status');
     const days = parseInt(searchParams.get('days') || '90');
 
-    console.log('[Marketing/Content] Fetching for org:', context.organizationId);
+    console.log('[Marketing/Content] Fetching for org:', context.workspaceId);
     if (platformFilter) console.log('[Marketing/Content] Platform filter:', platformFilter);
     if (statusFilter) console.log('[Marketing/Content] Status filter:', statusFilter);
 
@@ -33,7 +33,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
 
     // Build query conditions
     const conditions = [
-      eq(contentCalendar.organizationId, context.organizationId),
+      eq(contentCalendar.workspaceId, context.workspaceId),
       gte(contentCalendar.scheduledDate, startDateStr),
     ];
 
@@ -145,14 +145,14 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       );
     }
 
-    console.log('[Marketing/Content] Creating for org:', context.organizationId);
+    console.log('[Marketing/Content] Creating for org:', context.workspaceId);
     console.log('[Marketing/Content] Platform:', platform, 'Date:', scheduledDate);
 
     // Create content item
     const [newContent] = await db
       .insert(contentCalendar)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         platform,
         scheduledDate,
@@ -216,7 +216,7 @@ export const PATCH = withTenantSecurity(async (request: Request, context) => {
     const { status, title, body: contentBody, notes, scheduledDate } = body;
 
     console.log('[Marketing/Content] Updating ID:', id);
-    console.log('[Marketing/Content] Organization:', context.organizationId);
+    console.log('[Marketing/Content] Organization:', context.workspaceId);
 
     // Prepare update object
     const updateData: any = {
@@ -251,7 +251,7 @@ export const PATCH = withTenantSecurity(async (request: Request, context) => {
       .where(
         and(
           eq(contentCalendar.id, id),
-          eq(contentCalendar.organizationId, context.organizationId)
+          eq(contentCalendar.workspaceId, context.workspaceId)
         )
       )
       .returning();
@@ -305,7 +305,7 @@ export const DELETE = withTenantSecurity(async (request: Request, context) => {
     }
 
     console.log('[Marketing/Content] Deleting ID:', id);
-    console.log('[Marketing/Content] Organization:', context.organizationId);
+    console.log('[Marketing/Content] Organization:', context.workspaceId);
 
     // Delete content item (with organization check for security)
     const result = await db
@@ -313,7 +313,7 @@ export const DELETE = withTenantSecurity(async (request: Request, context) => {
       .where(
         and(
           eq(contentCalendar.id, id),
-          eq(contentCalendar.organizationId, context.organizationId)
+          eq(contentCalendar.workspaceId, context.workspaceId)
         )
       )
       .returning();

@@ -2,17 +2,18 @@ import { headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
-import { organizations, apiLogs } from '@/lib/db/schema';
+import { workspaces, apiLogs } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 /**
  * Tenant Context - derived from subdomain headers set by middleware
+ * Note: "Tenant" refers to workspace in multi-workspace architecture
  */
 export interface TenantContext {
-  organizationId: string;
-  organizationSubdomain: string;
-  organizationName: string;
-  organization: any; // Full organization object with credentials
+  workspaceId: string;
+  workspaceSubdomain: string;
+  workspaceName: string;
+  workspace: any; // Full workspace object with credentials
 }
 
 /**
@@ -21,7 +22,7 @@ export interface TenantContext {
 export interface SecurityContext extends TenantContext {
   userId: string;
   userEmail: string;
-  userRole: 'admin' | 'viewer';
+  userRole: 'owner' | 'admin' | 'member' | 'viewer';
 }
 
 /**
@@ -33,43 +34,43 @@ export interface SecurityContext extends TenantContext {
 export async function getTenantContext(): Promise<TenantContext> {
   const headersList = await headers();
 
-  const organizationId = headersList.get('x-organization-id');
-  const organizationSubdomain = headersList.get('x-organization-subdomain');
-  const organizationName = headersList.get('x-organization-name');
+  const workspaceId = headersList.get('x-organization-id');
+  const workspaceSubdomain = headersList.get('x-organization-subdomain');
+  const workspaceName = headersList.get('x-organization-name');
 
   // Debug logging
   console.log('getTenantContext - Headers:', {
-    organizationId: organizationId || 'missing',
-    organizationSubdomain: organizationSubdomain || 'missing',
-    organizationName: organizationName || 'missing',
+    workspaceId: workspaceId || 'missing',
+    workspaceSubdomain: workspaceSubdomain || 'missing',
+    workspaceName: workspaceName || 'missing',
     host: headersList.get('host') || 'missing',
   });
 
   // If headers are missing, it means middleware didn't set them
   // This should only happen on non-tenant routes (main domain, admin)
-  if (!organizationId || !organizationSubdomain) {
+  if (!workspaceId || !workspaceSubdomain) {
     throw new Error(
       `Tenant context not found - not a tenant subdomain. ` +
-      `Headers: orgId=${organizationId || 'missing'}, ` +
-      `subdomain=${organizationSubdomain || 'missing'}, ` +
+      `Headers: orgId=${workspaceId || 'missing'}, ` +
+      `subdomain=${workspaceSubdomain || 'missing'}, ` +
       `host=${headersList.get('host') || 'missing'}`
     );
   }
 
-  // Fetch full organization data (including encrypted credentials)
-  const organization = await db.query.organizations.findFirst({
-    where: eq(organizations.id, organizationId),
+  // Fetch full workspace data (including encrypted credentials)
+  const workspace = await db.query.workspaces.findFirst({
+    where: eq(workspaces.id, workspaceId),
   });
 
-  if (!organization) {
-    throw new Error('Organization not found in database');
+  if (!workspace) {
+    throw new Error('Workspace not found in database');
   }
 
   return {
-    organizationId,
-    organizationSubdomain,
-    organizationName: organizationName || organization.name,
-    organization,
+    workspaceId,
+    workspaceSubdomain,
+    workspaceName: workspaceName || workspace.name,
+    workspace,
   };
 }
 
@@ -96,20 +97,20 @@ export async function protectTenantRoute(): Promise<SecurityContext> {
   const tenantContext = await getTenantContext();
 
   // 3. CRITICAL SECURITY CHECK: Verify user belongs to THIS tenant
-  // Never trust organizationId from frontend - always derive from session
-  if (session.user.organizationId !== tenantContext.organizationId) {
+  // Never trust workspaceId from frontend - always derive from session
+  if (session.user.workspaceId !== tenantContext.workspaceId) {
     // Log security violation
     await logSecurityViolation({
       userId: session.user.id,
       userEmail: session.user.email, // Already validated above
-      userOrganizationId: session.user.organizationId,
-      attemptedOrganizationId: tenantContext.organizationId,
+      userOrganizationId: session.user.workspaceId,
+      attemptedOrganizationId: tenantContext.workspaceId,
       route: 'unknown', // Will be set by caller
       message: 'User attempted to access different tenant data',
     });
 
     throw new Error(
-      `Unauthorized - user belongs to ${session.user.organizationName} but tried to access ${tenantContext.organizationName}`
+      `Unauthorized - user belongs to ${session.user.workspaceName} but tried to access ${tenantContext.workspaceName}`
     );
   }
 
@@ -127,7 +128,7 @@ export async function protectTenantRoute(): Promise<SecurityContext> {
  */
 export async function logApiRequest(data: {
   userId: string;
-  organizationId: string;
+  workspaceId: string;
   apiName: string;
   endpoint: string;
   status: 'success' | 'error';
@@ -136,7 +137,7 @@ export async function logApiRequest(data: {
   try {
     await db.insert(apiLogs).values({
       userId: data.userId,
-      organizationId: data.organizationId,
+      workspaceId: data.workspaceId,
       apiName: data.apiName,
       endpoint: data.endpoint,
       status: data.status,
@@ -162,7 +163,7 @@ async function logSecurityViolation(data: {
   try {
     await db.insert(apiLogs).values({
       userId: data.userId,
-      organizationId: data.attemptedOrganizationId,
+      workspaceId: data.attemptedOrganizationId,
       apiName: 'SECURITY_VIOLATION',
       endpoint: data.route,
       status: 'error',
@@ -191,8 +192,8 @@ export function createApiError(message: string, status: number = 500) {
  *
  * Usage:
  * export const GET = withTenantSecurity(async (request, context) => {
- *   // context.userId, context.organizationId are already validated
- *   const data = await fetchData(context.organizationId);
+ *   // context.userId, context.workspaceId are already validated
+ *   const data = await fetchData(context.workspaceId);
  *   return NextResponse.json(data);
  * });
  */
@@ -218,7 +219,7 @@ export function withTenantSecurity(
       // Log successful request
       await logApiRequest({
         userId: securityContext.userId,
-        organizationId: securityContext.organizationId,
+        workspaceId: securityContext.workspaceId,
         apiName,
         endpoint,
         status: 'success',
@@ -238,7 +239,7 @@ export function withTenantSecurity(
 
           await logApiRequest({
             userId: session.user.id,
-            organizationId: session.user.organizationId,
+            workspaceId: session.user.workspaceId,
             apiName,
             endpoint,
             status: 'error',

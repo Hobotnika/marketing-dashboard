@@ -12,11 +12,11 @@ import { eq, and, asc } from 'drizzle-orm';
  */
 export const GET = withTenantSecurity(async (request: Request, context) => {
   try {
-    console.log('[Marketing/Message] Fetching for org:', context.organizationId);
+    console.log('[Marketing/Message] Fetching for org:', context.workspaceId);
 
     // Get the message framework
     const framework = await db.query.messageFrameworks.findFirst({
-      where: eq(messageFrameworks.organizationId, context.organizationId),
+      where: eq(messageFrameworks.workspaceId, context.workspaceId),
     });
 
     if (!framework) {
@@ -32,7 +32,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
     // Get pain points
     const painPointsList = await db.query.painPoints.findMany({
       where: and(
-        eq(painPoints.organizationId, context.organizationId),
+        eq(painPoints.workspaceId, context.workspaceId),
         eq(painPoints.messageFrameworkId, framework.id)
       ),
       orderBy: [asc(painPoints.displayOrder)],
@@ -41,7 +41,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
     // Get USPs
     const uspsList = await db.query.usps.findMany({
       where: and(
-        eq(usps.organizationId, context.organizationId),
+        eq(usps.workspaceId, context.workspaceId),
         eq(usps.messageFrameworkId, framework.id)
       ),
       orderBy: [asc(usps.displayOrder)],
@@ -82,12 +82,12 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
     const body = await request.json();
     const { valueProposition } = body;
 
-    console.log('[Marketing/Message] Upserting for org:', context.organizationId);
+    console.log('[Marketing/Message] Upserting for org:', context.workspaceId);
     console.log('[Marketing/Message] User:', context.userId);
 
     // Check if framework already exists
     const existing = await db.query.messageFrameworks.findFirst({
-      where: eq(messageFrameworks.organizationId, context.organizationId),
+      where: eq(messageFrameworks.workspaceId, context.workspaceId),
     });
 
     let result;
@@ -112,7 +112,7 @@ export const POST = withTenantSecurity(async (request: Request, context) => {
       const [created] = await db
         .insert(messageFrameworks)
         .values({
-          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
           userId: context.userId,
           valueProposition: valueProposition || null,
         })

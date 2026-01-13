@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
 
     // Build query
-    let whereConditions = [eq(offerTemplates.organizationId, context.organizationId)];
+    let whereConditions = [eq(offerTemplates.workspaceId, context.workspaceId)];
 
     if (category && category !== 'all') {
       whereConditions.push(eq(offerTemplates.category, category));
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     const newTemplate = await db
       .insert(offerTemplates)
       .values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: context.userId,
         name,
         category,

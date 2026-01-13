@@ -22,7 +22,7 @@ export async function GET(
       .where(
         and(
           eq(tasks.id, params.id),
-          eq(tasks.organizationId, context.organizationId)
+          eq(tasks.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -42,7 +42,7 @@ export async function GET(
         and(
           eq(comments.entityType, 'task'),
           eq(comments.entityId, params.id),
-          eq(comments.organizationId, context.organizationId)
+          eq(comments.workspaceId, context.workspaceId)
         )
       )
       .orderBy(desc(comments.createdAt));
@@ -85,7 +85,7 @@ export async function PATCH(
       .where(
         and(
           eq(tasks.id, params.id),
-          eq(tasks.organizationId, context.organizationId)
+          eq(tasks.workspaceId, context.workspaceId)
         )
       )
       .limit(1);
@@ -135,7 +135,7 @@ export async function PATCH(
     }
 
     await db.insert(activityFeed).values({
-      organizationId: context.organizationId,
+      workspaceId: context.workspaceId,
       userId: context.userId,
       activityType: body.status === 'completed' ? 'task_completed' : 'task_updated',
       entityType: 'task',
@@ -147,7 +147,7 @@ export async function PATCH(
     // Create notification for new assignee if changed
     if (body.assignedTo && body.assignedTo !== existingTask.assignedTo && body.assignedTo !== context.userId) {
       await db.insert(notifications).values({
-        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
         userId: body.assignedTo,
         notificationType: 'task_assigned',
         title: 'Task reassigned to you',
@@ -193,7 +193,7 @@ export async function DELETE(
       .where(
         and(
           eq(tasks.id, params.id),
-          eq(tasks.organizationId, context.organizationId)
+          eq(tasks.workspaceId, context.workspaceId)
         )
       )
       .limit(1);

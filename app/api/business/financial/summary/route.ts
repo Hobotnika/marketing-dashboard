@@ -24,7 +24,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = new Date().toISOString().split('T')[0];
 
-    console.log('[Financial/Summary] Calculating for org:', context.organizationId);
+    console.log('[Financial/Summary] Calculating for org:', context.workspaceId);
     console.log('[Financial/Summary] Date range:', startDateStr, 'to', endDateStr);
 
     // Calculate total revenue by source
@@ -37,7 +37,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
       .from(incomeActivities)
       .where(
         and(
-          eq(incomeActivities.organizationId, context.organizationId),
+          eq(incomeActivities.workspaceId, context.workspaceId),
           gte(incomeActivities.date, startDateStr)
         )
       )
@@ -53,7 +53,7 @@ export const GET = withTenantSecurity(async (request: Request, context) => {
       .from(transactions)
       .where(
         and(
-          eq(transactions.organizationId, context.organizationId),
+          eq(transactions.workspaceId, context.workspaceId),
           gte(transactions.date, startDateStr)
         )
       )
